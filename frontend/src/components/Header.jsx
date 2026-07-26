@@ -1,9 +1,17 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 const Header = () => {
   const { lang, setLang, t } = useLanguage();
+  const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const tabs = [
     { path: '/', label: t.nav.home, icon: '🏠' },
@@ -23,16 +31,29 @@ const Header = () => {
           </h1>
           <p className="text-xs text-gray-500 hidden sm:block">{t.tagline}</p>
         </div>
-        <div className="flex gap-1">
-          {['en', 'si', 'ta'].map((l) => (
-            <button
-              key={l}
-              onClick={() => setLang(l)}
-              className={`px-2.5 py-1 rounded-lg text-sm font-medium ${lang === l ? 'bg-pink-500 text-white' : 'bg-pink-100 text-pink-600 hover:bg-pink-200'}`}
-            >
-              {l === 'en' ? 'EN' : l === 'si' ? 'සිං' : 'தமி'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {['en', 'si', 'ta'].map((l) => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                className={`px-2.5 py-1 rounded-lg text-sm font-medium ${lang === l ? 'bg-pink-500 text-white' : 'bg-pink-100 text-pink-600 hover:bg-pink-200'}`}
+              >
+                {l === 'en' ? 'EN' : l === 'si' ? 'සිං' : 'தமி'}
+              </button>
+            ))}
+          </div>
+          {user && (
+            <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
+              <div className="hidden sm:block text-right">
+                <p className="text-sm font-medium text-gray-700 leading-tight">{user.name}</p>
+                <p className="text-[10px] uppercase tracking-wide text-purple-500">{user.role}</p>
+              </div>
+              <button onClick={handleLogout} className="text-sm px-3 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">
+                {t.logout}
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <nav className="max-w-4xl mx-auto px-4 flex gap-1 overflow-x-auto pb-2">
