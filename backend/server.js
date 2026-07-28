@@ -2,10 +2,27 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const uploadsDir = path.join(__dirname, 'uploads', 'scan-reports');
+fs.mkdirSync(uploadsDir, { recursive: true });
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random()*1e9)}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    cb(allowed.includes(file.mimetype) ? null : new Error('Only PDF, JPG, PNG, or WEBP scan reports are allowed'), allowed.includes(file.mimetype));
+  },
+});
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'momcare-lk-demo-secret';
@@ -41,8 +58,11 @@ let reminders = [
 ];
 
 let healthRecords = [
-  { id: 1, familyId: 1, createdBy: 1, date: '2026-07-10', weightKg: 61.5, bpSystolic: 110, bpDiastolic: 72, notes: 'Feeling good' },
-  { id: 2, familyId: 1, createdBy: 1, date: '2026-07-17', weightKg: 62.1, bpSystolic: 114, bpDiastolic: 75, notes: 'Mild back pain' },
+  { id: 1, familyId: 1, createdBy: 1, type: 'weight', date: '2026-07-10', value: 61.5, unit: 'kg', notes: 'Feeling good', createdAt: '2026-07-10T08:00:00Z' },
+  { id: 2, familyId: 1, createdBy: 1, type: 'blood_pressure', date: '2026-07-17', systolic: 114, diastolic: 75, pulse: 78, notes: 'Measured after resting', createdAt: '2026-07-17T08:00:00Z' },
+];
+let healthRecordComments = [
+  { id: 80, familyId: 1, recordId: 2, authorId: 3, authorName: 'Dr. Silva', authorRole: 'doctor', text: 'This reading is within the expected range. Continue monitoring at the same time of day.', createdAt: '2026-07-17T10:00:00Z' },
 ];
 
 let forumPosts = [
@@ -316,12 +336,90 @@ app.patch('/api/reminders/:id', requireAuth, requireRole('mom'), (req, res) => {
   res.json(reminder);
 });
 
-app.get('/api/records', requireAuth, (req, res) => res.json(healthRecords.filter((r) => r.familyId === req.user.familyId)));
-app.post('/api/records', requireAuth, requireRole('mom'), (req, res) => {
-  const { date, weightKg, bpSystolic, bpDiastolic, notes } = req.body;
-  const record = { id: nextId++, familyId: req.user.familyId, createdBy: req.user.id, date, weightKg, bpSystolic, bpDiastolic, notes };
+function validateHealthRecord(body, file, partial = false) {
+  const type = body.type;
+  if (!partial && !['weight', 'blood_pressure', 'scan_report'].includes(type)) return 'Invalid health record type';
+  if (!partial && !body.date) return 'Date is required';
+  if (type === 'weight' && (!Number.isFinite(Number(body.value)) || Number(body.value) < 25 || Number(body.value) > 250)) return 'Weight must be between 25 and 250 kg';
+  if (type === 'blood_pressure') {
+    const sys = Number(body.systolic), dia = Number(body.diastolic);
+    if (!Number.isFinite(sys) || !Number.isFinite(dia) || sys < 60 || sys > 250 || dia < 35 || dia > 150 || sys <= dia) return 'Enter a valid blood pressure reading';
+  }
+  if (type === 'scan_report' && !file && !partial) return 'A scan report file is required';
+  return null;
+}
+
+function serializeRecord(record) {
+  return { ...record, comments: healthRecordComments.filter((c) => c.recordId === record.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)) };
+}
+
+app.get('/api/records', requireAuth, (req, res) => {
+  res.json(healthRecords.filter((r) => r.familyId === req.user.familyId).sort((a,b) => b.date.localeCompare(a.date)).map(serializeRecord));
+});
+
+app.post('/api/records', requireAuth, requireRole('mom'), upload.single('file'), (req, res) => {
+  const error = validateHealthRecord(req.body, req.file);
+  if (error) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(400).json({ error }); }
+  const type = req.body.type;
+  const record = { id: nextId++, familyId: req.user.familyId, createdBy: req.user.id, type, date: req.body.date, notes: String(req.body.notes || '').trim(), createdAt: new Date().toISOString() };
+  if (type === 'weight') Object.assign(record, { value: Number(req.body.value), unit: 'kg' });
+  if (type === 'blood_pressure') Object.assign(record, { systolic: Number(req.body.systolic), diastolic: Number(req.body.diastolic), pulse: req.body.pulse ? Number(req.body.pulse) : null });
+  if (type === 'scan_report') Object.assign(record, { title: String(req.body.title || 'Scan report').trim(), scanType: String(req.body.scanType || 'Other').trim(), fileName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, fileSize: req.file.size });
   healthRecords.push(record);
-  res.status(201).json(record);
+  res.status(201).json(serializeRecord(record));
+});
+
+app.put('/api/records/:id', requireAuth, requireRole('mom'), upload.single('file'), (req, res) => {
+  const record = healthRecords.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
+  if (!record) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(404).json({ error: 'Health record not found' }); }
+  const body = { ...req.body, type: record.type };
+  const error = validateHealthRecord(body, req.file, true);
+  if (error) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(400).json({ error }); }
+  if (req.body.date) record.date = req.body.date;
+  if ('notes' in req.body) record.notes = String(req.body.notes || '').trim();
+  if (record.type === 'weight' && req.body.value) record.value = Number(req.body.value);
+  if (record.type === 'blood_pressure') {
+    if (req.body.systolic) record.systolic = Number(req.body.systolic);
+    if (req.body.diastolic) record.diastolic = Number(req.body.diastolic);
+    if ('pulse' in req.body) record.pulse = req.body.pulse ? Number(req.body.pulse) : null;
+  }
+  if (record.type === 'scan_report') {
+    if ('title' in req.body) record.title = String(req.body.title || 'Scan report').trim();
+    if ('scanType' in req.body) record.scanType = String(req.body.scanType || 'Other').trim();
+    if (req.file) {
+      if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => {});
+      Object.assign(record, { fileName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, fileSize: req.file.size });
+    }
+  }
+  record.updatedAt = new Date().toISOString();
+  res.json(serializeRecord(record));
+});
+
+app.delete('/api/records/:id', requireAuth, requireRole('mom'), (req, res) => {
+  const index = healthRecords.findIndex((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
+  if (index < 0) return res.status(404).json({ error: 'Health record not found' });
+  const [record] = healthRecords.splice(index, 1);
+  if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => {});
+  healthRecordComments = healthRecordComments.filter((c) => c.recordId !== record.id);
+  res.json({ message: 'Health record deleted' });
+});
+
+app.get('/api/records/:id/file', requireAuth, (req, res) => {
+  const record = healthRecords.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId && r.type === 'scan_report');
+  if (!record) return res.status(404).json({ error: 'Scan report not found' });
+  const filePath = path.join(uploadsDir, record.storedName);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Stored file is missing' });
+  res.type(record.mimeType); res.setHeader('Content-Disposition', `inline; filename="${record.fileName.replace(/"/g, '')}"`); res.sendFile(filePath);
+});
+
+app.post('/api/records/:id/comments', requireAuth, (req, res) => {
+  const record = healthRecords.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
+  if (!record) return res.status(404).json({ error: 'Health record not found' });
+  const text = String(req.body.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'Comment is required' });
+  const comment = { id: nextId++, familyId: req.user.familyId, recordId: record.id, authorId: req.user.id, authorName: req.user.name, authorRole: req.user.role, text, createdAt: new Date().toISOString() };
+  healthRecordComments.push(comment);
+  res.status(201).json(comment);
 });
 
 app.get('/api/forum', (req, res) => res.json(forumPosts));
@@ -365,6 +463,12 @@ app.post('/api/assistant', (req, res) => {
     ? match.answer
     : 'Thanks for your question! In the full version, our AI assistant will answer any pregnancy-related question. For now, try asking about sleep, diet, back pain, or baby movements. Always consult your doctor or midwife for medical concerns.';
   res.json({ answer, disclaimer: 'This is general guidance, not medical advice.' });
+});
+
+app.use((err, _req, res, _next) => {
+  if (err instanceof multer.MulterError) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Scan report must be 8 MB or smaller' : err.message });
+  if (err) return res.status(400).json({ error: err.message || 'Request could not be processed' });
+  return res.status(500).json({ error: 'Unexpected server error' });
 });
 
 app.listen(PORT, () => console.log(`MomCare LK API running on http://localhost:${PORT}`));

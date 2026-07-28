@@ -2,12 +2,14 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('momcare_token');
+  const isFormData = options.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
     ...options,
+    headers: {
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `API error: ${res.status}`);
@@ -33,7 +35,11 @@ export const api = {
   addReminder: (data) => request('/api/reminders', { method: 'POST', body: JSON.stringify(data) }),
   toggleReminder: (id, done) => request(`/api/reminders/${id}`, { method: 'PATCH', body: JSON.stringify({ done }) }),
   getRecords: () => request('/api/records'),
-  addRecord: (data) => request('/api/records', { method: 'POST', body: JSON.stringify(data) }),
+  addRecord: (data) => request('/api/records', { method: 'POST', body: data }),
+  updateRecord: (id, data) => request(`/api/records/${id}`, { method: 'PUT', body: data }),
+  deleteRecord: (id) => request(`/api/records/${id}`, { method: 'DELETE' }),
+  addRecordComment: (id, text) => request(`/api/records/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
+  getRecordFileUrl: (id) => `${API_BASE}/api/records/${id}/file`,
   getForum: () => request('/api/forum'),
   addPost: (data) => request('/api/forum', { method: 'POST', body: JSON.stringify(data) }),
   logMood: (mood) => request('/api/mood', { method: 'POST', body: JSON.stringify({ mood }) }),

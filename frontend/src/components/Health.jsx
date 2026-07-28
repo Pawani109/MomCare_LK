@@ -1,112 +1,108 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { useLanguage } from '../context/LanguageContext';
 import { Card, SectionTitle } from './Card';
 import { useAuth } from '../context/AuthContext';
 import RoleNotice from './RoleNotice';
 
-const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm w-full';
+const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm w-full bg-white';
+const empty = { type: 'weight', date: '', value: '', systolic: '', diastolic: '', pulse: '', title: '', scanType: 'Ultrasound', notes: '', file: null };
+
+function toFormData(form) {
+  const data = new FormData();
+  Object.entries(form).forEach(([key, value]) => {
+    if (value !== '' && value !== null && value !== undefined) data.append(key, value);
+  });
+  return data;
+}
 
 const Health = () => {
-  const { t } = useLanguage();
   const { user } = useAuth();
-  const [reminders, setReminders] = useState([]);
   const [records, setRecords] = useState([]);
-  const [newReminder, setNewReminder] = useState({ title: '', date: '', time: '' });
-  const [newRecord, setNewRecord] = useState({ date: '', weightKg: '', bpSystolic: '', bpDiastolic: '', notes: '' });
+  const [form, setForm] = useState(empty);
+  const [editing, setEditing] = useState(null);
+  const [comments, setComments] = useState({});
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    api.getReminders().then(setReminders).catch(() => {});
-    api.getRecords().then(setRecords).catch(() => {});
-  }, []);
+  const load = () => api.getRecords().then(setRecords).catch((e) => setError(e.message));
+  useEffect(() => { load(); }, []);
 
-  const addReminder = async (e) => {
-    e.preventDefault();
-    if (!newReminder.title || !newReminder.date) return;
-    const r = await api.addReminder(newReminder);
-    setReminders((prev) => [...prev, r]);
-    setNewReminder({ title: '', date: '', time: '' });
+  const visible = useMemo(() => filter === 'all' ? records : records.filter((r) => r.type === filter), [records, filter]);
+
+  const submit = async (e) => {
+    e.preventDefault(); setError(''); setBusy(true);
+    try {
+      const payload = toFormData(form);
+      if (editing) await api.updateRecord(editing.id, payload);
+      else await api.addRecord(payload);
+      setForm(empty); setEditing(null); await load();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
-  const toggle = async (r) => {
-    const updated = await api.toggleReminder(r.id, !r.done);
-    setReminders((prev) => prev.map((x) => (x.id === r.id ? updated : x)));
+  const edit = (r) => {
+    setEditing(r);
+    setForm({ type: r.type, date: r.date, value: r.value || '', systolic: r.systolic || '', diastolic: r.diastolic || '', pulse: r.pulse || '', title: r.title || '', scanType: r.scanType || 'Ultrasound', notes: r.notes || '', file: null });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const addRecord = async (e) => {
-    e.preventDefault();
-    if (!newRecord.date) return;
-    const rec = await api.addRecord(newRecord);
-    setRecords((prev) => [...prev, rec]);
-    setNewRecord({ date: '', weightKg: '', bpSystolic: '', bpDiastolic: '', notes: '' });
+  const remove = async (r) => {
+    if (!window.confirm('Delete this health record permanently?')) return;
+    try { await api.deleteRecord(r.id); await load(); } catch (e) { setError(e.message); }
+  };
+
+  const addComment = async (recordId) => {
+    const text = (comments[recordId] || '').trim(); if (!text) return;
+    try { await api.addRecordComment(recordId, text); setComments((x) => ({ ...x, [recordId]: '' })); await load(); } catch (e) { setError(e.message); }
+  };
+
+  const openFile = async (record) => {
+    const token = localStorage.getItem('momcare_token');
+    const res = await fetch(api.getRecordFileUrl(record.id), { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return setError('Unable to open scan report');
+    const blob = await res.blob(); window.open(URL.createObjectURL(blob), '_blank', 'noopener,noreferrer');
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
-      <RoleNotice role={user.role}>Health records and reminders are read-only for your role. Add guidance or observations through the Care Team comments.</RoleNotice>
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">Digital Health Records</h1>
+        <p className="text-sm text-gray-500 mt-1">Store blood pressure, weight, and scan reports in one protected family record.</p>
+      </div>
 
-      <Card>
-        <SectionTitle>📅 {t.reminders}</SectionTitle>
-        <ul className="space-y-2 mb-4">
-          {reminders.map((r) => (
-            <li key={r.id} className={`flex items-center justify-between rounded-xl border px-3 py-2 ${r.done ? 'bg-green-50 border-green-200' : 'bg-pink-50/50 border-pink-100'}`}>
-              <div>
-                <p className={`text-sm font-medium ${r.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{r.title}</p>
-                <p className="text-xs text-gray-500">{r.date} {r.time}</p>
-              </div>
-              {user.role === 'mom' && <button onClick={() => toggle(r)} className={`text-xs px-3 py-1.5 rounded-lg ${r.done ? 'bg-green-500 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
-                ✓ {t.markDone}
-              </button>}
-            </li>
-          ))}
-        </ul>
-        {user.role === 'mom' && <form onSubmit={addReminder} className="grid sm:grid-cols-4 gap-2">
-          <input className={`${inputCls} sm:col-span-2`} placeholder={t.reminderTitle} value={newReminder.title} onChange={(e) => setNewReminder({ ...newReminder, title: e.target.value })} />
-          <input className={inputCls} type="date" value={newReminder.date} onChange={(e) => setNewReminder({ ...newReminder, date: e.target.value })} />
-          <div className="flex gap-2">
-            <input className={inputCls} type="time" value={newReminder.time} onChange={(e) => setNewReminder({ ...newReminder, time: e.target.value })} />
-            <button className="bg-pink-500 text-white rounded-lg px-3 text-sm whitespace-nowrap">+ {t.addReminder}</button>
+      <RoleNotice role={user.role}>These records are read-only for your role. You may review them and add a comment, but only the mother can create, edit, replace, or delete records.</RoleNotice>
+      {error && <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">{error}</div>}
+
+      {user.role === 'mom' && <Card>
+        <SectionTitle>{editing ? '✏️ Edit health record' : '➕ Add health record'}</SectionTitle>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid sm:grid-cols-3 gap-3">
+            <label className="text-sm text-gray-600">Record type<select disabled={!!editing} className={`${inputCls} mt-1`} value={form.type} onChange={(e) => setForm({ ...empty, type: e.target.value })}><option value="weight">Weight</option><option value="blood_pressure">Blood pressure</option><option value="scan_report">Scan report</option></select></label>
+            <label className="text-sm text-gray-600">Date<input required max={new Date().toISOString().slice(0,10)} className={`${inputCls} mt-1`} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label>
+            {form.type === 'weight' && <label className="text-sm text-gray-600">Weight (kg)<input required min="25" max="250" step="0.1" className={`${inputCls} mt-1`} type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} /></label>}
+            {form.type === 'scan_report' && <label className="text-sm text-gray-600">Scan type<select className={`${inputCls} mt-1`} value={form.scanType} onChange={(e) => setForm({ ...form, scanType: e.target.value })}><option>Ultrasound</option><option>Anomaly scan</option><option>Growth scan</option><option>Laboratory report</option><option>Other</option></select></label>}
           </div>
-        </form>}
-      </Card>
+          {form.type === 'blood_pressure' && <div className="grid sm:grid-cols-3 gap-3"><input required min="60" max="250" className={inputCls} type="number" placeholder="Systolic (SYS)" value={form.systolic} onChange={(e) => setForm({ ...form, systolic: e.target.value })} /><input required min="35" max="150" className={inputCls} type="number" placeholder="Diastolic (DIA)" value={form.diastolic} onChange={(e) => setForm({ ...form, diastolic: e.target.value })} /><input min="30" max="220" className={inputCls} type="number" placeholder="Pulse (optional)" value={form.pulse} onChange={(e) => setForm({ ...form, pulse: e.target.value })} /></div>}
+          {form.type === 'scan_report' && <div className="grid sm:grid-cols-2 gap-3"><input required className={inputCls} placeholder="Report title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><label className="text-xs text-gray-500"><input required={!editing} className={inputCls} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={(e) => setForm({ ...form, file: e.target.files[0] || null })} />PDF/JPG/PNG/WEBP, maximum 8 MB {editing && '(leave empty to keep current file)'}</label></div>}
+          <textarea className={inputCls} rows="2" placeholder="Notes or symptoms (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          <div className="flex gap-2"><button disabled={busy} className="bg-purple-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Saving...' : editing ? 'Save changes' : 'Add record'}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(empty); }} className="border rounded-lg px-4 py-2 text-sm">Cancel</button>}</div>
+        </form>
+      </Card>}
 
       <Card>
-        <SectionTitle>📋 {t.records}</SectionTitle>
-        <div className="overflow-x-auto mb-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-100">
-                <th className="py-2 pr-4">{t.date}</th>
-                <th className="py-2 pr-4">{t.weight}</th>
-                <th className="py-2 pr-4">{t.bloodPressure}</th>
-                <th className="py-2">{t.notes}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r) => (
-                <tr key={r.id} className="border-b border-gray-50">
-                  <td className="py-2 pr-4">{r.date}</td>
-                  <td className="py-2 pr-4">{r.weightKg}</td>
-                  <td className="py-2 pr-4">{r.bpSystolic}/{r.bpDiastolic}</td>
-                  <td className="py-2 text-gray-500">{r.notes}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-wrap justify-between gap-3 items-center mb-4"><SectionTitle>📋 Health record history</SectionTitle><select className="border rounded-lg px-3 py-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All records</option><option value="weight">Weight</option><option value="blood_pressure">Blood pressure</option><option value="scan_report">Scan reports</option></select></div>
+        <div className="space-y-4">
+          {visible.length === 0 && <p className="text-center text-gray-400 py-8">No records found.</p>}
+          {visible.map((r) => <article key={r.id} className="border border-gray-100 rounded-2xl p-4 bg-white">
+            <div className="flex flex-wrap justify-between gap-3">
+              <div><span className="text-xs uppercase tracking-wide font-semibold text-purple-600">{r.type.replace('_', ' ')}</span><h3 className="font-semibold text-gray-800 mt-1">{r.type === 'weight' ? `${r.value} kg` : r.type === 'blood_pressure' ? `${r.systolic}/${r.diastolic} mmHg${r.pulse ? ` · pulse ${r.pulse}` : ''}` : r.title}</h3><p className="text-xs text-gray-500">{r.date}{r.scanType ? ` · ${r.scanType}` : ''}</p>{r.notes && <p className="text-sm text-gray-600 mt-2">{r.notes}</p>}</div>
+              <div className="flex gap-2 items-start">{r.type === 'scan_report' && <button onClick={() => openFile(r)} className="text-sm border border-purple-200 text-purple-700 rounded-lg px-3 py-2">View report</button>}{user.role === 'mom' && <><button onClick={() => edit(r)} className="text-sm border rounded-lg px-3 py-2">Edit</button><button onClick={() => remove(r)} className="text-sm border border-red-200 text-red-600 rounded-lg px-3 py-2">Delete</button></>}</div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100"><p className="text-xs font-semibold text-gray-500 mb-2">Comments</p>{(r.comments || []).map((c) => <div key={c.id} className="bg-gray-50 rounded-lg px-3 py-2 mb-2"><p className="text-xs font-semibold text-gray-700">{c.authorName} · {c.authorRole}</p><p className="text-sm text-gray-600">{c.text}</p></div>)}<div className="flex gap-2"><input className={inputCls} placeholder="Add a comment or observation" value={comments[r.id] || ''} onChange={(e) => setComments({ ...comments, [r.id]: e.target.value })} /><button onClick={() => addComment(r.id)} className="bg-pink-500 text-white rounded-lg px-3 text-sm">Comment</button></div></div>
+          </article>)}
         </div>
-        {user.role === 'mom' && <form onSubmit={addRecord} className="grid sm:grid-cols-5 gap-2">
-          <input className={inputCls} type="date" value={newRecord.date} onChange={(e) => setNewRecord({ ...newRecord, date: e.target.value })} />
-          <input className={inputCls} type="number" step="0.1" placeholder={t.weight} value={newRecord.weightKg} onChange={(e) => setNewRecord({ ...newRecord, weightKg: e.target.value })} />
-          <div className="flex gap-1">
-            <input className={inputCls} type="number" placeholder="SYS" value={newRecord.bpSystolic} onChange={(e) => setNewRecord({ ...newRecord, bpSystolic: e.target.value })} />
-            <input className={inputCls} type="number" placeholder="DIA" value={newRecord.bpDiastolic} onChange={(e) => setNewRecord({ ...newRecord, bpDiastolic: e.target.value })} />
-          </div>
-          <input className={inputCls} placeholder={t.notes} value={newRecord.notes} onChange={(e) => setNewRecord({ ...newRecord, notes: e.target.value })} />
-          <button className="bg-purple-500 text-white rounded-lg px-3 py-2 text-sm">+ {t.addRecord}</button>
-        </form>}
       </Card>
     </div>
   );
 };
-
 export default Health;
