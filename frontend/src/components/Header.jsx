@@ -15,6 +15,8 @@ const Header = () => {
 
   const tabs = [
     { path: '/', label: t.nav.home, icon: '🏠' },
+    { path: '/pregnancy', label: 'Tracker', icon: '🤰' },
+    { path: '/appointments', label: 'Appointments', icon: '📅' },
     { path: '/health', label: t.nav.health, icon: '🩺' },
     { path: '/emergency', label: t.nav.emergency, icon: '🚨' },
     { path: '/shopping', label: t.nav.shopping, icon: '🛍️' },

@@ -10,6 +10,8 @@ import Shopping from "./components/Shopping";
 import Wellbeing from "./components/Wellbeing";
 import Login from "./components/Login";
 import Register from "./components/Register";
+import PregnancyTracker from "./components/PregnancyTracker";
+import Appointments from "./components/Appointments";
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -29,6 +31,8 @@ function AppRoutes() {
           <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
           <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
           <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
+          <Route path="/pregnancy" element={<RequireAuth><PregnancyTracker /></RequireAuth>} />
+          <Route path="/appointments" element={<RequireAuth><Appointments /></RequireAuth>} />
           <Route path="/health" element={<RequireAuth><Health /></RequireAuth>} />
           <Route path="/emergency" element={<RequireAuth><Emergency /></RequireAuth>} />
           <Route path="/shopping" element={<RequireAuth><Shopping /></RequireAuth>} />

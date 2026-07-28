@@ -14,13 +14,18 @@ const babyFacts = {
 const Home = () => {
   const { lang, t } = useLanguage();
   const [profile, setProfile] = useState(null);
+  const [appointments, setAppointments] = useState([]);
 
   useEffect(() => {
     api.getProfile().then(setProfile).catch(() => setProfile(null));
+    api.getAppointments().then(setAppointments).catch(() => setAppointments([]));
   }, []);
 
   const week = profile?.currentWeek ?? 24;
+  const nextAppointment = appointments.filter((item) => !item.completed && new Date(`${item.date}T${item.time}`) >= new Date()).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0];
   const pillars = [
+    { path: '/pregnancy', icon: '🤰', title: 'Pregnancy Tracker', desc: 'Follow your baby’s development week by week.', color: 'from-fuchsia-100 to-pink-50' },
+    { path: '/appointments', icon: '📅', title: 'Clinic Appointments', desc: 'Plan clinic visits and keep reminders together.', color: 'from-violet-100 to-purple-50' },
     { path: '/health', icon: '🩺', title: t.pillars.health, desc: t.pillars.healthDesc, color: 'from-pink-100 to-pink-50' },
     { path: '/emergency', icon: '🚨', title: t.pillars.emergency, desc: t.pillars.emergencyDesc, color: 'from-red-100 to-red-50' },
     { path: '/shopping', icon: '🛍️', title: t.pillars.shopping, desc: t.pillars.shoppingDesc, color: 'from-amber-100 to-amber-50' },
@@ -46,6 +51,23 @@ const Home = () => {
         <SectionTitle>👶 {t.babyThisWeek}</SectionTitle>
         <p className="text-gray-600 text-sm">{babyFacts[lang]}</p>
       </Card>
+
+      {nextAppointment && (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-purple-500">Next clinic appointment</p>
+              <p className="font-semibold text-gray-800 mt-1">{nextAppointment.type}</p>
+              <p className="text-sm text-gray-500">{nextAppointment.hospital}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-semibold text-pink-600">{new Date(`${nextAppointment.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+              <p className="text-sm text-gray-500">{nextAppointment.time} {nextAppointment.reminderEnabled ? '🔔' : ''}</p>
+            </div>
+          </div>
+          <Link to="/appointments" className="inline-block mt-3 text-sm font-medium text-purple-600 hover:text-purple-700">View appointments →</Link>
+        </Card>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-4">
         {pillars.map((p) => (

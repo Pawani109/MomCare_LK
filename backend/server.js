@@ -24,6 +24,15 @@ const demoUser = {
   ],
 };
 
+let pregnancyProfiles = [
+  { userId: 1, lmpDate: '2026-02-13' },
+];
+
+let appointments = [
+  { id: 1, userId: 1, hospital: 'MOH Office Nugegoda', doctor: 'Dr. Silva', date: '2026-07-30', time: '09:00', type: 'Routine antenatal clinic', notes: 'Bring clinic book and previous reports', reminderEnabled: true, completed: false },
+  { id: 2, userId: 1, hospital: 'Castle Street Hospital for Women', doctor: 'Dr. Perera', date: '2026-08-12', time: '10:00', type: 'Ultrasound scan', notes: 'Anomaly scan appointment', reminderEnabled: true, completed: false },
+];
+
 let reminders = [
   { id: 1, title: 'Clinic visit – MOH Office Nugegoda', date: '2026-07-30', time: '09:00', done: false },
   { id: 2, title: 'Blood test – Full blood count', date: '2026-08-05', time: '08:30', done: false },
@@ -124,15 +133,115 @@ app.get('/api/auth/me', (req, res) => {
   }
 });
 
+
+function getAuthUser(req) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
+
+function requireAuth(req, res, next) {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Please log in to continue' });
+  req.user = user;
+  next();
+}
+
+function pregnancySummary(lmpDate) {
+  const lmp = new Date(`${lmpDate}T00:00:00`);
+  const today = new Date();
+  const elapsedDays = Math.max(0, Math.floor((today - lmp) / 86400000));
+  const currentWeek = Math.min(40, Math.max(1, Math.floor(elapsedDays / 7) + 1));
+  const currentDay = elapsedDays % 7;
+  const due = new Date(lmp);
+  due.setDate(due.getDate() + 280);
+  return { lmpDate, dueDate: due.toISOString().slice(0, 10), currentWeek, currentDay, progress: Math.min(100, Math.round((elapsedDays / 280) * 100)) };
+}
+
+const weekContent = [
+  { from: 1, to: 4, size: 'Poppy seed', baby: 'The fertilised egg is implanting and the earliest structures are beginning to form.', mother: 'You may notice tiredness, breast tenderness, or no symptoms at all.', checkup: 'Confirm the pregnancy and ask a healthcare professional about prenatal vitamins.' },
+  { from: 5, to: 8, size: 'Raspberry', baby: 'The brain, spinal cord, and early heart structures are developing quickly.', mother: 'Nausea, food aversions, and fatigue are common during these weeks.', checkup: 'Arrange your first antenatal appointment and discuss any medicines you take.' },
+  { from: 9, to: 12, size: 'Lime', baby: 'Major organs are formed and continue to mature while tiny limbs become more defined.', mother: 'Morning sickness may continue, and your waist may start to feel different.', checkup: 'Your clinic may offer routine blood tests and dating guidance.' },
+  { from: 13, to: 16, size: 'Avocado', baby: 'Bones are hardening, facial features are clearer, and movement is increasing.', mother: 'Energy often improves, although headaches or stretching sensations can occur.', checkup: 'Continue regular antenatal visits and discuss screening options with your clinician.' },
+  { from: 17, to: 20, size: 'Bell pepper', baby: 'Hearing is developing and you may begin to feel gentle movements.', mother: 'Your bump is more noticeable and back discomfort may begin.', checkup: 'An anatomy or anomaly scan is commonly planned around this stage.' },
+  { from: 21, to: 24, size: 'Corn cob', baby: 'The baby is gaining weight and practising breathing movements.', mother: 'You may experience leg cramps, heartburn, or stronger movements.', checkup: 'Keep scheduled clinic visits and ask about healthy weight gain.' },
+  { from: 25, to: 28, size: 'Cauliflower', baby: 'The lungs and nervous system are maturing, and the baby responds to sound.', mother: 'Sleep may become harder and swelling can appear in the feet.', checkup: 'Your care team may discuss blood pressure, anaemia, and glucose screening.' },
+  { from: 29, to: 32, size: 'Coconut', baby: 'Rapid brain growth continues while body fat increases.', mother: 'Breathlessness, pelvic pressure, and frequent urination may increase.', checkup: 'Discuss baby movements and your birth plan at upcoming visits.' },
+  { from: 33, to: 36, size: 'Pineapple', baby: 'The baby continues gaining weight and may settle into a head-down position.', mother: 'Braxton Hicks contractions and tiredness may become more noticeable.', checkup: 'Appointments may become more frequent; review signs of labour with your clinician.' },
+  { from: 37, to: 40, size: 'Watermelon', baby: 'The baby is considered term and continues preparing for birth.', mother: 'Pelvic pressure and irregular contractions are common as labour approaches.', checkup: 'Follow your clinic schedule and seek urgent care for reduced movements, bleeding, severe pain, or fluid leakage.' },
+];
+
+function contentForWeek(week) {
+  return weekContent.find((item) => week >= item.from && week <= item.to) || weekContent[weekContent.length - 1];
+}
+
 // ---- Routes ----
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'MomCare LK API' }));
 
-app.get('/api/profile', (req, res) => {
-  const start = new Date(demoUser.pregnancyStartDate);
-  const now = new Date();
-  const week = Math.min(40, Math.max(1, Math.floor((now - start) / (7 * 24 * 3600 * 1000)) + 1));
-  res.json({ ...demoUser, currentWeek: week });
+app.get('/api/profile', requireAuth, (req, res) => {
+  const profile = pregnancyProfiles.find((item) => item.userId === req.user.id) || pregnancyProfiles[0];
+  const summary = pregnancySummary(profile.lmpDate);
+  res.json({ ...demoUser, name: req.user.name, ...summary });
+});
+
+app.get('/api/pregnancy', requireAuth, (req, res) => {
+  const profile = pregnancyProfiles.find((item) => item.userId === req.user.id) || pregnancyProfiles[0];
+  const summary = pregnancySummary(profile.lmpDate);
+  res.json({ ...summary, weekInfo: contentForWeek(summary.currentWeek) });
+});
+
+app.put('/api/pregnancy', requireAuth, (req, res) => {
+  const { lmpDate } = req.body;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(lmpDate || '')) return res.status(400).json({ error: 'A valid LMP date is required' });
+  const parsed = new Date(`${lmpDate}T00:00:00`);
+  if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return res.status(400).json({ error: 'LMP date cannot be in the future' });
+  let profile = pregnancyProfiles.find((item) => item.userId === req.user.id);
+  if (profile) profile.lmpDate = lmpDate;
+  else {
+    profile = { userId: req.user.id, lmpDate };
+    pregnancyProfiles.push(profile);
+  }
+  const summary = pregnancySummary(lmpDate);
+  res.json({ ...summary, weekInfo: contentForWeek(summary.currentWeek) });
+});
+
+app.get('/api/pregnancy/weeks/:week', requireAuth, (req, res) => {
+  const week = Number(req.params.week);
+  if (!Number.isInteger(week) || week < 1 || week > 40) return res.status(400).json({ error: 'Week must be between 1 and 40' });
+  res.json({ week, ...contentForWeek(week) });
+});
+
+app.get('/api/appointments', requireAuth, (req, res) => {
+  res.json(appointments.filter((item) => item.userId === req.user.id).sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)));
+});
+
+app.post('/api/appointments', requireAuth, (req, res) => {
+  const { hospital, doctor = '', date, time, type = 'Clinic appointment', notes = '', reminderEnabled = true } = req.body;
+  if (!hospital || !date || !time) return res.status(400).json({ error: 'Hospital, date, and time are required' });
+  const appointment = { id: nextId++, userId: req.user.id, hospital, doctor, date, time, type, notes, reminderEnabled: Boolean(reminderEnabled), completed: false };
+  appointments.push(appointment);
+  res.status(201).json(appointment);
+});
+
+app.put('/api/appointments/:id', requireAuth, (req, res) => {
+  const appointment = appointments.find((item) => item.id === Number(req.params.id) && item.userId === req.user.id);
+  if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+  const allowed = ['hospital', 'doctor', 'date', 'time', 'type', 'notes', 'reminderEnabled', 'completed'];
+  allowed.forEach((key) => { if (req.body[key] !== undefined) appointment[key] = req.body[key]; });
+  res.json(appointment);
+});
+
+app.delete('/api/appointments/:id', requireAuth, (req, res) => {
+  const index = appointments.findIndex((item) => item.id === Number(req.params.id) && item.userId === req.user.id);
+  if (index === -1) return res.status(404).json({ error: 'Appointment not found' });
+  appointments.splice(index, 1);
+  res.status(204).send();
 });
 
 app.get('/api/reminders', (req, res) => res.json(reminders));
