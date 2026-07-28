@@ -12,6 +12,7 @@ import Login from "./components/Login";
 import Register from "./components/Register";
 import PregnancyTracker from "./components/PregnancyTracker";
 import Appointments from "./components/Appointments";
+import CareTeam from "./components/CareTeam";
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ function AppRoutes() {
           <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
           <Route path="/pregnancy" element={<RequireAuth><PregnancyTracker /></RequireAuth>} />
           <Route path="/appointments" element={<RequireAuth><Appointments /></RequireAuth>} />
+          <Route path="/care-team" element={<RequireAuth><CareTeam /></RequireAuth>} />
           <Route path="/health" element={<RequireAuth><Health /></RequireAuth>} />
           <Route path="/emergency" element={<RequireAuth><Emergency /></RequireAuth>} />
           <Route path="/shopping" element={<RequireAuth><Shopping /></RequireAuth>} />

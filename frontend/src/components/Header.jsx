@@ -17,6 +17,7 @@ const Header = () => {
     { path: '/', label: t.nav.home, icon: '🏠' },
     { path: '/pregnancy', label: 'Tracker', icon: '🤰' },
     { path: '/appointments', label: 'Appointments', icon: '📅' },
+    { path: '/care-team', label: 'Care Team', icon: '👥' },
     { path: '/health', label: t.nav.health, icon: '🩺' },
     { path: '/emergency', label: t.nav.emergency, icon: '🚨' },
     { path: '/shopping', label: t.nav.shopping, icon: '🛍️' },
@@ -49,7 +50,7 @@ const Header = () => {
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
               <div className="hidden sm:block text-right">
                 <p className="text-sm font-medium text-gray-700 leading-tight">{user.name}</p>
-                <p className="text-[10px] uppercase tracking-wide text-purple-500">{user.role}</p>
+                <p className="text-[10px] uppercase tracking-wide text-purple-500">{user.role === 'doctor' ? 'Doctor / Midwife' : user.role}</p>
               </div>
               <button onClick={handleLogout} className="text-sm px-3 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">
                 {t.logout}

@@ -7,7 +7,7 @@ const Register = () => {
   const { t } = useLanguage();
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'mom' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'mom', familyCode: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -73,6 +73,11 @@ const Register = () => {
               ))}
             </div>
           </div>
+          {form.role !== 'mom' && <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Family invitation code</label>
+            <input className={inputCls} required value={form.familyCode} onChange={set('familyCode')} placeholder="e.g. MC-1001" />
+            <p className="text-xs text-gray-400 mt-1">Ask the mother for her private family code.</p>
+          </div>}
           <button disabled={loading} className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold rounded-lg py-2.5 hover:opacity-90 transition disabled:opacity-60">
             {loading ? '...' : t.register}
           </button>

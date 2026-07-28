@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Card, SectionTitle } from './Card';
+import { useAuth } from '../context/AuthContext';
+import RoleNotice from './RoleNotice';
 
 const PregnancyTracker = () => {
+  const { user } = useAuth();
   const [tracker, setTracker] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [lmpDate, setLmpDate] = useState('');
@@ -53,7 +56,9 @@ const PregnancyTracker = () => {
         <p className="mt-2 text-sm">{tracker.progress}% of the 40-week journey</p>
       </Card>
 
-      <Card>
+      <RoleNotice role={user.role}>Pregnancy dates belong to the mother. You may review the tracker and add a comment from the Care Team page.</RoleNotice>
+
+      {user.role === 'mom' && <Card>
         <SectionTitle>📅 Set pregnancy dates</SectionTitle>
         <form onSubmit={saveLmp} className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <label className="flex-1 text-sm text-gray-600">First day of last menstrual period (LMP)
@@ -62,7 +67,7 @@ const PregnancyTracker = () => {
           <button disabled={saving} className="rounded-xl bg-pink-500 px-5 py-2.5 text-white font-medium hover:bg-pink-600 disabled:opacity-60">{saving ? 'Saving...' : 'Update tracker'}</button>
         </form>
         {message && <p className="mt-3 text-sm text-purple-600">{message}</p>}
-      </Card>
+      </Card>}
 
       {selectedWeek && <Card>
         <div className="flex items-center justify-between gap-3"><SectionTitle>👶 Week {selectedWeek.week}</SectionTitle><span className="text-sm bg-pink-100 text-pink-700 px-3 py-1 rounded-full">Size: {selectedWeek.size}</span></div>

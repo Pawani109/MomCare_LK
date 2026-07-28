@@ -14,6 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'momcare-lk-demo-secret';
 
 const demoUser = {
   id: 1,
+  familyId: 1,
   name: 'Nimasha Perera',
   role: 'mom',
   dueDate: '2026-11-20',
@@ -25,23 +26,23 @@ const demoUser = {
 };
 
 let pregnancyProfiles = [
-  { userId: 1, lmpDate: '2026-02-13' },
+  { familyId: 1, momUserId: 1, lmpDate: '2026-02-13' },
 ];
 
 let appointments = [
-  { id: 1, userId: 1, hospital: 'MOH Office Nugegoda', doctor: 'Dr. Silva', date: '2026-07-30', time: '09:00', type: 'Routine antenatal clinic', notes: 'Bring clinic book and previous reports', reminderEnabled: true, completed: false },
-  { id: 2, userId: 1, hospital: 'Castle Street Hospital for Women', doctor: 'Dr. Perera', date: '2026-08-12', time: '10:00', type: 'Ultrasound scan', notes: 'Anomaly scan appointment', reminderEnabled: true, completed: false },
+  { id: 1, familyId: 1, createdBy: 1, hospital: 'MOH Office Nugegoda', doctor: 'Dr. Silva', date: '2026-07-30', time: '09:00', type: 'Routine antenatal clinic', notes: 'Bring clinic book and previous reports', reminderEnabled: true, completed: false },
+  { id: 2, familyId: 1, createdBy: 1, hospital: 'Castle Street Hospital for Women', doctor: 'Dr. Perera', date: '2026-08-12', time: '10:00', type: 'Ultrasound scan', notes: 'Anomaly scan appointment', reminderEnabled: true, completed: false },
 ];
 
 let reminders = [
-  { id: 1, title: 'Clinic visit – MOH Office Nugegoda', date: '2026-07-30', time: '09:00', done: false },
-  { id: 2, title: 'Blood test – Full blood count', date: '2026-08-05', time: '08:30', done: false },
-  { id: 3, title: 'Ultrasound scan (anomaly scan)', date: '2026-08-12', time: '10:00', done: false },
+  { id: 1, familyId: 1, title: 'Clinic visit – MOH Office Nugegoda', date: '2026-07-30', time: '09:00', done: false },
+  { id: 2, familyId: 1, title: 'Blood test – Full blood count', date: '2026-08-05', time: '08:30', done: false },
+  { id: 3, familyId: 1, title: 'Ultrasound scan (anomaly scan)', date: '2026-08-12', time: '10:00', done: false },
 ];
 
 let healthRecords = [
-  { id: 1, date: '2026-07-10', weightKg: 61.5, bpSystolic: 110, bpDiastolic: 72, notes: 'Feeling good' },
-  { id: 2, date: '2026-07-17', weightKg: 62.1, bpSystolic: 114, bpDiastolic: 75, notes: 'Mild back pain' },
+  { id: 1, familyId: 1, createdBy: 1, date: '2026-07-10', weightKg: 61.5, bpSystolic: 110, bpDiastolic: 72, notes: 'Feeling good' },
+  { id: 2, familyId: 1, createdBy: 1, date: '2026-07-17', weightKg: 62.1, bpSystolic: 114, bpDiastolic: 75, notes: 'Mild back pain' },
 ];
 
 let forumPosts = [
@@ -63,6 +64,9 @@ let forumPosts = [
   },
 ];
 
+let careComments = [
+  { id: 90, familyId: 1, authorId: 3, authorName: 'Dr. Silva', authorRole: 'doctor', category: 'general', text: 'Continue the scheduled antenatal visits and bring the clinic book to the next appointment.', createdAt: '2026-07-24T09:00:00Z' },
+];
 let moodLog = [];
 let sosEvents = [];
 let nextId = 100;
@@ -76,6 +80,8 @@ const users = [
     email: 'mom@momcare.lk',
     passwordHash: bcrypt.hashSync('mom123', 10),
     role: 'mom',
+    familyId: 1,
+    familyCode: 'MC-1001',
   },
   {
     id: 2,
@@ -83,6 +89,7 @@ const users = [
     email: 'partner@momcare.lk',
     passwordHash: bcrypt.hashSync('partner123', 10),
     role: 'partner',
+    familyId: 1,
   },
   {
     id: 3,
@@ -90,25 +97,40 @@ const users = [
     email: 'doctor@momcare.lk',
     passwordHash: bcrypt.hashSync('doctor123', 10),
     role: 'doctor',
+    familyId: 1,
   },
 ];
 let nextUserId = 4;
+let nextFamilyId = 2;
 
 function makeToken(user) {
-  return jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, familyId: user.familyId }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return { id: user.id, name: user.name, email: user.email, role: user.role, familyId: user.familyId, familyCode: user.role === 'mom' ? user.familyCode : undefined };
 }
 
 app.post('/api/auth/register', (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, familyCode } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'Name, email and password are required' });
-  if (!['mom', 'partner', 'doctor'].includes(role)) return res.status(400).json({ error: 'Role must be mom, partner or doctor' });
+  if (!['mom', 'partner', 'doctor'].includes(role)) return res.status(400).json({ error: 'Role must be mom, partner or doctor/midwife' });
   if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'An account with this email already exists' });
-  const user = { id: nextUserId++, name, email, passwordHash: bcrypt.hashSync(password, 10), role };
+
+  let familyId;
+  let generatedFamilyCode;
+  if (role === 'mom') {
+    familyId = nextFamilyId++;
+    generatedFamilyCode = `MC-${String(1000 + familyId)}`;
+  } else {
+    const familyMom = users.find((u) => u.role === 'mom' && u.familyCode === String(familyCode || '').trim().toUpperCase());
+    if (!familyMom) return res.status(400).json({ error: 'A valid family invitation code from the mother is required' });
+    familyId = familyMom.familyId;
+  }
+
+  const user = { id: nextUserId++, name, email, passwordHash: bcrypt.hashSync(password, 10), role, familyId, ...(generatedFamilyCode ? { familyCode: generatedFamilyCode } : {}) };
   users.push(user);
+  if (role === 'mom') pregnancyProfiles.push({ familyId, momUserId: user.id, lmpDate: new Date().toISOString().slice(0, 10) });
   res.status(201).json({ token: makeToken(user), user: publicUser(user) });
 });
 
@@ -127,7 +149,8 @@ app.get('/api/auth/me', (req, res) => {
   if (!token) return res.status(401).json({ error: 'Not logged in' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    res.json({ user: { id: payload.id, name: payload.name, email: payload.email, role: payload.role } });
+    const stored = users.find((u) => u.id === payload.id);
+    res.json({ user: stored ? publicUser(stored) : { id: payload.id, name: payload.name, email: payload.email, role: payload.role, familyId: payload.familyId } });
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
   }
@@ -151,6 +174,24 @@ function requireAuth(req, res, next) {
   req.user = user;
   next();
 }
+
+
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) return res.status(403).json({ error: `This action is only available to: ${roles.join(', ')}` });
+    next();
+  };
+}
+
+function familyMom(req) {
+  return users.find((u) => u.familyId === req.user.familyId && u.role === 'mom');
+}
+
+const permissionsByRole = {
+  mom: { editPregnancy: true, manageAppointments: true, addHealthRecords: true, addCareComments: true, viewFamilyData: true },
+  partner: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, viewFamilyData: true },
+  doctor: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, viewFamilyData: true },
+};
 
 function pregnancySummary(lmpDate) {
   const lmp = new Date(`${lmpDate}T00:00:00`);
@@ -184,31 +225,36 @@ function contentForWeek(week) {
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'MomCare LK API' }));
 
+app.get('/api/access', requireAuth, (req, res) => {
+  const members = users.filter((u) => u.familyId === req.user.familyId).map(publicUser);
+  res.json({ role: req.user.role, permissions: permissionsByRole[req.user.role], members, familyCode: familyMom(req)?.familyCode });
+});
+
 app.get('/api/profile', requireAuth, (req, res) => {
-  const profile = pregnancyProfiles.find((item) => item.userId === req.user.id) || pregnancyProfiles[0];
+  const mom = familyMom(req);
+  const profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
+  if (!mom || !profile) return res.status(404).json({ error: 'Mother profile not found for this family' });
   const summary = pregnancySummary(profile.lmpDate);
-  res.json({ ...demoUser, name: req.user.name, ...summary });
+  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, ...summary });
 });
 
 app.get('/api/pregnancy', requireAuth, (req, res) => {
-  const profile = pregnancyProfiles.find((item) => item.userId === req.user.id) || pregnancyProfiles[0];
+  const profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
+  if (!profile) return res.status(404).json({ error: 'Pregnancy profile not found' });
   const summary = pregnancySummary(profile.lmpDate);
-  res.json({ ...summary, weekInfo: contentForWeek(summary.currentWeek) });
+  res.json({ ...summary, canEdit: req.user.role === 'mom', weekInfo: contentForWeek(summary.currentWeek) });
 });
 
-app.put('/api/pregnancy', requireAuth, (req, res) => {
+app.put('/api/pregnancy', requireAuth, requireRole('mom'), (req, res) => {
   const { lmpDate } = req.body;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(lmpDate || '')) return res.status(400).json({ error: 'A valid LMP date is required' });
   const parsed = new Date(`${lmpDate}T00:00:00`);
   if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return res.status(400).json({ error: 'LMP date cannot be in the future' });
-  let profile = pregnancyProfiles.find((item) => item.userId === req.user.id);
+  let profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
   if (profile) profile.lmpDate = lmpDate;
-  else {
-    profile = { userId: req.user.id, lmpDate };
-    pregnancyProfiles.push(profile);
-  }
+  else { profile = { familyId: req.user.familyId, momUserId: req.user.id, lmpDate }; pregnancyProfiles.push(profile); }
   const summary = pregnancySummary(lmpDate);
-  res.json({ ...summary, weekInfo: contentForWeek(summary.currentWeek) });
+  res.json({ ...summary, canEdit: true, weekInfo: contentForWeek(summary.currentWeek) });
 });
 
 app.get('/api/pregnancy/weeks/:week', requireAuth, (req, res) => {
@@ -218,50 +264,62 @@ app.get('/api/pregnancy/weeks/:week', requireAuth, (req, res) => {
 });
 
 app.get('/api/appointments', requireAuth, (req, res) => {
-  res.json(appointments.filter((item) => item.userId === req.user.id).sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)));
+  res.json(appointments.filter((item) => item.familyId === req.user.familyId).sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)));
 });
 
-app.post('/api/appointments', requireAuth, (req, res) => {
+app.post('/api/appointments', requireAuth, requireRole('mom'), (req, res) => {
   const { hospital, doctor = '', date, time, type = 'Clinic appointment', notes = '', reminderEnabled = true } = req.body;
   if (!hospital || !date || !time) return res.status(400).json({ error: 'Hospital, date, and time are required' });
-  const appointment = { id: nextId++, userId: req.user.id, hospital, doctor, date, time, type, notes, reminderEnabled: Boolean(reminderEnabled), completed: false };
+  const appointment = { id: nextId++, familyId: req.user.familyId, createdBy: req.user.id, hospital, doctor, date, time, type, notes, reminderEnabled: Boolean(reminderEnabled), completed: false };
   appointments.push(appointment);
   res.status(201).json(appointment);
 });
 
-app.put('/api/appointments/:id', requireAuth, (req, res) => {
-  const appointment = appointments.find((item) => item.id === Number(req.params.id) && item.userId === req.user.id);
+app.put('/api/appointments/:id', requireAuth, requireRole('mom'), (req, res) => {
+  const appointment = appointments.find((item) => item.id === Number(req.params.id) && item.familyId === req.user.familyId);
   if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
   const allowed = ['hospital', 'doctor', 'date', 'time', 'type', 'notes', 'reminderEnabled', 'completed'];
   allowed.forEach((key) => { if (req.body[key] !== undefined) appointment[key] = req.body[key]; });
   res.json(appointment);
 });
 
-app.delete('/api/appointments/:id', requireAuth, (req, res) => {
-  const index = appointments.findIndex((item) => item.id === Number(req.params.id) && item.userId === req.user.id);
+app.delete('/api/appointments/:id', requireAuth, requireRole('mom'), (req, res) => {
+  const index = appointments.findIndex((item) => item.id === Number(req.params.id) && item.familyId === req.user.familyId);
   if (index === -1) return res.status(404).json({ error: 'Appointment not found' });
   appointments.splice(index, 1);
   res.status(204).send();
 });
 
-app.get('/api/reminders', (req, res) => res.json(reminders));
-app.post('/api/reminders', (req, res) => {
+app.get('/api/care-comments', requireAuth, (req, res) => {
+  res.json(careComments.filter((item) => item.familyId === req.user.familyId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+});
+
+app.post('/api/care-comments', requireAuth, (req, res) => {
+  const { text, category = 'general' } = req.body;
+  if (!String(text || '').trim()) return res.status(400).json({ error: 'Comment text is required' });
+  const comment = { id: nextId++, familyId: req.user.familyId, authorId: req.user.id, authorName: req.user.name, authorRole: req.user.role, category, text: String(text).trim(), createdAt: new Date().toISOString() };
+  careComments.push(comment);
+  res.status(201).json(comment);
+});
+
+app.get('/api/reminders', requireAuth, (req, res) => res.json(reminders.filter((r) => r.familyId === req.user.familyId)));
+app.post('/api/reminders', requireAuth, requireRole('mom'), (req, res) => {
   const { title, date, time } = req.body;
-  const reminder = { id: nextId++, title, date, time, done: false };
+  const reminder = { id: nextId++, familyId: req.user.familyId, title, date, time, done: false };
   reminders.push(reminder);
   res.status(201).json(reminder);
 });
-app.patch('/api/reminders/:id', (req, res) => {
-  const reminder = reminders.find((r) => r.id === Number(req.params.id));
+app.patch('/api/reminders/:id', requireAuth, requireRole('mom'), (req, res) => {
+  const reminder = reminders.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
   if (!reminder) return res.status(404).json({ error: 'Not found' });
   reminder.done = req.body.done ?? reminder.done;
   res.json(reminder);
 });
 
-app.get('/api/records', (req, res) => res.json(healthRecords));
-app.post('/api/records', (req, res) => {
+app.get('/api/records', requireAuth, (req, res) => res.json(healthRecords.filter((r) => r.familyId === req.user.familyId)));
+app.post('/api/records', requireAuth, requireRole('mom'), (req, res) => {
   const { date, weightKg, bpSystolic, bpDiastolic, notes } = req.body;
-  const record = { id: nextId++, date, weightKg, bpSystolic, bpDiastolic, notes };
+  const record = { id: nextId++, familyId: req.user.familyId, createdBy: req.user.id, date, weightKg, bpSystolic, bpDiastolic, notes };
   healthRecords.push(record);
   res.status(201).json(record);
 });

@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useLanguage } from '../context/LanguageContext';
 import { Card, SectionTitle } from './Card';
+import { useAuth } from '../context/AuthContext';
+import RoleNotice from './RoleNotice';
 
 const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm w-full';
 
 const Health = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [reminders, setReminders] = useState([]);
   const [records, setRecords] = useState([]);
   const [newReminder, setNewReminder] = useState({ title: '', date: '', time: '' });
@@ -40,6 +43,8 @@ const Health = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+      <RoleNotice role={user.role}>Health records and reminders are read-only for your role. Add guidance or observations through the Care Team comments.</RoleNotice>
+
       <Card>
         <SectionTitle>📅 {t.reminders}</SectionTitle>
         <ul className="space-y-2 mb-4">
@@ -49,20 +54,20 @@ const Health = () => {
                 <p className={`text-sm font-medium ${r.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{r.title}</p>
                 <p className="text-xs text-gray-500">{r.date} {r.time}</p>
               </div>
-              <button onClick={() => toggle(r)} className={`text-xs px-3 py-1.5 rounded-lg ${r.done ? 'bg-green-500 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
+              {user.role === 'mom' && <button onClick={() => toggle(r)} className={`text-xs px-3 py-1.5 rounded-lg ${r.done ? 'bg-green-500 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
                 ✓ {t.markDone}
-              </button>
+              </button>}
             </li>
           ))}
         </ul>
-        <form onSubmit={addReminder} className="grid sm:grid-cols-4 gap-2">
+        {user.role === 'mom' && <form onSubmit={addReminder} className="grid sm:grid-cols-4 gap-2">
           <input className={`${inputCls} sm:col-span-2`} placeholder={t.reminderTitle} value={newReminder.title} onChange={(e) => setNewReminder({ ...newReminder, title: e.target.value })} />
           <input className={inputCls} type="date" value={newReminder.date} onChange={(e) => setNewReminder({ ...newReminder, date: e.target.value })} />
           <div className="flex gap-2">
             <input className={inputCls} type="time" value={newReminder.time} onChange={(e) => setNewReminder({ ...newReminder, time: e.target.value })} />
             <button className="bg-pink-500 text-white rounded-lg px-3 text-sm whitespace-nowrap">+ {t.addReminder}</button>
           </div>
-        </form>
+        </form>}
       </Card>
 
       <Card>
@@ -89,7 +94,7 @@ const Health = () => {
             </tbody>
           </table>
         </div>
-        <form onSubmit={addRecord} className="grid sm:grid-cols-5 gap-2">
+        {user.role === 'mom' && <form onSubmit={addRecord} className="grid sm:grid-cols-5 gap-2">
           <input className={inputCls} type="date" value={newRecord.date} onChange={(e) => setNewRecord({ ...newRecord, date: e.target.value })} />
           <input className={inputCls} type="number" step="0.1" placeholder={t.weight} value={newRecord.weightKg} onChange={(e) => setNewRecord({ ...newRecord, weightKg: e.target.value })} />
           <div className="flex gap-1">
@@ -98,7 +103,7 @@ const Health = () => {
           </div>
           <input className={inputCls} placeholder={t.notes} value={newRecord.notes} onChange={(e) => setNewRecord({ ...newRecord, notes: e.target.value })} />
           <button className="bg-purple-500 text-white rounded-lg px-3 py-2 text-sm">+ {t.addRecord}</button>
-        </form>
+        </form>}
       </Card>
     </div>
   );

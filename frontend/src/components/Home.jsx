@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useLanguage } from '../context/LanguageContext';
 import { Card, SectionTitle } from './Card';
 import Assistant from './Assistant';
+import { useAuth } from '../context/AuthContext';
 
 const babyFacts = {
   en: 'Around this week, your baby is growing fast — organs are developing and you may start to feel gentle movements. Keep up your clinic visits and stay hydrated!',
@@ -13,6 +14,7 @@ const babyFacts = {
 
 const Home = () => {
   const { lang, t } = useLanguage();
+  const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [appointments, setAppointments] = useState([]);
 
@@ -26,6 +28,7 @@ const Home = () => {
   const pillars = [
     { path: '/pregnancy', icon: '🤰', title: 'Pregnancy Tracker', desc: 'Follow your baby’s development week by week.', color: 'from-fuchsia-100 to-pink-50' },
     { path: '/appointments', icon: '📅', title: 'Clinic Appointments', desc: 'Plan clinic visits and keep reminders together.', color: 'from-violet-100 to-purple-50' },
+    { path: '/care-team', icon: '👥', title: 'Care Team & Access', desc: 'View linked accounts, permissions, and care comments.', color: 'from-indigo-100 to-violet-50' },
     { path: '/health', icon: '🩺', title: t.pillars.health, desc: t.pillars.healthDesc, color: 'from-pink-100 to-pink-50' },
     { path: '/emergency', icon: '🚨', title: t.pillars.emergency, desc: t.pillars.emergencyDesc, color: 'from-red-100 to-red-50' },
     { path: '/shopping', icon: '🛍️', title: t.pillars.shopping, desc: t.pillars.shoppingDesc, color: 'from-amber-100 to-amber-50' },
@@ -35,7 +38,7 @@ const Home = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
       <Card className="bg-gradient-to-r from-pink-500 to-purple-500 !border-0 text-white">
-        <p className="text-sm opacity-90">{t.welcome},</p>
+        <p className="text-sm opacity-90">{t.welcome} · {user.role === 'doctor' ? 'Doctor / Midwife access' : `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)} access`}</p>
         <p className="text-2xl font-bold">{profile?.name ?? 'Demo Mom'} 👋</p>
         <div className="mt-4 flex items-end gap-3">
           <span className="text-4xl font-extrabold">{t.week} {week}</span>
