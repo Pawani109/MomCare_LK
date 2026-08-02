@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { LanguageProvider } from "./context/LanguageContext";
+import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Header from "./components/Header";
 import Home from "./components/Home";
@@ -23,6 +23,7 @@ function RequireAuth({ children }) {
 
 function AppRoutes() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-purple-50">
       {user && <Header />}
@@ -42,7 +43,7 @@ function AppRoutes() {
         </Routes>
 
         <footer className="text-center text-xs text-gray-400 py-6">
-          MomCare LK — CCS2313 Mini Project Demo · Group 05
+          {t.footer}
         </footer>
       </div>
     </div>

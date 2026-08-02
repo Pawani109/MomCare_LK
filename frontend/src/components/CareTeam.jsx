@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { Card, SectionTitle } from './Card';
+import { useLanguage } from '../context/LanguageContext';
 
-const roleLabel = { mom: 'Mother', partner: 'Partner', doctor: 'Doctor / Midwife' };
 const categoryLabel = { general: 'General care', appointment: 'Appointment', health: 'Health record', pregnancy: 'Pregnancy tracker' };
 
 export default function CareTeam() {
+  const { t } = useLanguage();
+  const ct = t.care;
+  const roleLabel = { mom: t.roles.mom, partner: t.roles.partner, doctor: t.roles.doctor };
   const { user } = useAuth();
   const [access, setAccess] = useState(null);
   const [comments, setComments] = useState([]);
@@ -26,7 +29,7 @@ export default function CareTeam() {
     try {
       await api.addCareComment(form);
       setForm({ category: 'general', text: '' });
-      setMessage('Comment added successfully.');
+      setMessage(ct.commentAdded);
       await load();
     } catch (error) { setMessage(error.message); }
   };
@@ -34,7 +37,7 @@ export default function CareTeam() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
       <Card className="bg-gradient-to-r from-violet-500 to-pink-500 !border-0 text-white">
-        <p className="text-sm opacity-85">Signed in with</p>
+        <p className="text-sm opacity-85">{ct.signedIn}</p>
         <p className="text-2xl font-bold mt-1">{roleLabel[user.role]}</p>
         <p className="text-sm mt-2 opacity-90">
           {user.role === 'mom' && 'You own and manage your pregnancy, appointment, and health information.'}
@@ -44,7 +47,7 @@ export default function CareTeam() {
       </Card>
 
       <Card>
-        <SectionTitle>👥 Linked care team</SectionTitle>
+        <SectionTitle>👥 {ct.linked}</SectionTitle>
         <div className="grid sm:grid-cols-3 gap-3">
           {access?.members?.map((member) => (
             <div key={member.id} className="rounded-xl bg-gray-50 border border-gray-100 p-4">
@@ -56,23 +59,23 @@ export default function CareTeam() {
         </div>
         {user.role === 'mom' && access?.familyCode && (
           <div className="mt-4 rounded-xl border border-pink-200 bg-pink-50 p-4">
-            <p className="text-sm font-semibold text-pink-700">Family invitation code</p>
+            <p className="text-sm font-semibold text-pink-700">{ct.invitation}</p>
             <p className="text-2xl font-bold tracking-widest text-gray-800 mt-1">{access.familyCode}</p>
-            <p className="text-xs text-gray-500 mt-1">Share this code only with your trusted partner or healthcare professional.</p>
+            <p className="text-xs text-gray-500 mt-1">{ct.inviteHelp}</p>
           </div>
         )}
       </Card>
 
       <Card>
-        <SectionTitle>🔐 Permission summary</SectionTitle>
+        <SectionTitle>🔐 {ct.permissions}</SectionTitle>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-gray-500 border-b"><th className="py-2">Area</th><th className="py-2">Mother</th><th className="py-2">Partner</th><th className="py-2">Doctor / Midwife</th></tr></thead>
+            <thead><tr className="text-left text-gray-500 border-b"><th className="py-2">{ct.area}</th><th className="py-2">{t.roles.mom}</th><th className="py-2">{t.roles.partner}</th><th className="py-2">{t.roles.doctor}</th></tr></thead>
             <tbody>
               {[
-                ['Pregnancy dates', 'View & edit', 'View only', 'View only'],
-                ['Appointments', 'Add, edit & delete', 'View only', 'View only'],
-                ['Health records', 'View & add', 'View only', 'View only'],
+                [ct.pregnancyDates, ct.viewEdit, ct.viewOnly, ct.viewOnly],
+                [ct.appointments, ct.addEditDelete, ct.viewOnly, ct.viewOnly],
+                [ct.healthRecords, 'View & add', ct.viewOnly, ct.viewOnly],
                 ['Care comments', 'Add', 'Add', 'Add'],
               ].map((row) => <tr key={row[0]} className="border-b border-gray-50">{row.map((cell, i) => <td key={cell} className={`py-2 pr-3 ${i === 0 ? 'font-medium text-gray-700' : 'text-gray-500'}`}>{cell}</td>)}</tr>)}
             </tbody>
@@ -81,7 +84,7 @@ export default function CareTeam() {
       </Card>
 
       <Card>
-        <SectionTitle>💬 Care team comments</SectionTitle>
+        <SectionTitle>💬 {ct.careComments}</SectionTitle>
         <form onSubmit={submit} className="space-y-3 mb-5">
           <select className="field" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
             {Object.entries(categoryLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

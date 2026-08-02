@@ -3,6 +3,7 @@ import { api } from '../api';
 import { Card, SectionTitle } from './Card';
 import { useAuth } from '../context/AuthContext';
 import RoleNotice from './RoleNotice';
+import { useLanguage } from '../context/LanguageContext';
 
 const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm w-full bg-white';
 const empty = { type: 'weight', date: '', value: '', systolic: '', diastolic: '', pulse: '', title: '', scanType: 'Ultrasound', notes: '', file: null };
@@ -16,6 +17,8 @@ function toFormData(form) {
 }
 
 const Health = () => {
+  const { t } = useLanguage();
+  const ht = t.health;
   const { user } = useAuth();
   const [records, setRecords] = useState([]);
   const [form, setForm] = useState(empty);
@@ -47,7 +50,7 @@ const Health = () => {
   };
 
   const remove = async (r) => {
-    if (!window.confirm('Delete this health record permanently?')) return;
+    if (!window.confirm(ht.deleteConfirm)) return;
     try { await api.deleteRecord(r.id); await load(); } catch (e) { setError(e.message); }
   };
 
@@ -59,28 +62,28 @@ const Health = () => {
   const openFile = async (record) => {
     const token = localStorage.getItem('momcare_token');
     const res = await fetch(api.getRecordFileUrl(record.id), { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return setError('Unable to open scan report');
+    if (!res.ok) return setError(ht.openError);
     const blob = await res.blob(); window.open(URL.createObjectURL(blob), '_blank', 'noopener,noreferrer');
   };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Digital Health Records</h1>
-        <p className="text-sm text-gray-500 mt-1">Store blood pressure, weight, and scan reports in one protected family record.</p>
+        <h1 className="text-2xl font-bold text-gray-800">{ht.title}</h1>
+        <p className="text-sm text-gray-500 mt-1">{ht.desc}</p>
       </div>
 
-      <RoleNotice role={user.role}>These records are read-only for your role. You may review them and add a comment, but only the mother can create, edit, replace, or delete records.</RoleNotice>
+      <RoleNotice role={user.role}>{ht.readonly}</RoleNotice>
       {error && <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">{error}</div>}
 
       {user.role === 'mom' && <Card>
-        <SectionTitle>{editing ? '✏️ Edit health record' : '➕ Add health record'}</SectionTitle>
+        <SectionTitle>{editing ? `✏️ ${ht.editTitle}` : `➕ ${ht.addTitle}`}</SectionTitle>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid sm:grid-cols-3 gap-3">
-            <label className="text-sm text-gray-600">Record type<select disabled={!!editing} className={`${inputCls} mt-1`} value={form.type} onChange={(e) => setForm({ ...empty, type: e.target.value })}><option value="weight">Weight</option><option value="blood_pressure">Blood pressure</option><option value="scan_report">Scan report</option></select></label>
-            <label className="text-sm text-gray-600">Date<input required max={new Date().toISOString().slice(0,10)} className={`${inputCls} mt-1`} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label>
-            {form.type === 'weight' && <label className="text-sm text-gray-600">Weight (kg)<input required min="25" max="250" step="0.1" className={`${inputCls} mt-1`} type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} /></label>}
-            {form.type === 'scan_report' && <label className="text-sm text-gray-600">Scan type<select className={`${inputCls} mt-1`} value={form.scanType} onChange={(e) => setForm({ ...form, scanType: e.target.value })}><option>Ultrasound</option><option>Anomaly scan</option><option>Growth scan</option><option>Laboratory report</option><option>Other</option></select></label>}
+            <label className="text-sm text-gray-600">{ht.recordType}<select disabled={!!editing} className={`${inputCls} mt-1`} value={form.type} onChange={(e) => setForm({ ...empty, type: e.target.value })}><option value="weight">{ht.weight}</option><option value="blood_pressure">{ht.bloodPressure}</option><option value="scan_report">{ht.scanReport}</option></select></label>
+            <label className="text-sm text-gray-600">{t.date}<input required max={new Date().toISOString().slice(0,10)} className={`${inputCls} mt-1`} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label>
+            {form.type === 'weight' && <label className="text-sm text-gray-600">{ht.weightKg}<input required min="25" max="250" step="0.1" className={`${inputCls} mt-1`} type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} /></label>}
+            {form.type === 'scan_report' && <label className="text-sm text-gray-600">{ht.scanType}<select className={`${inputCls} mt-1`} value={form.scanType} onChange={(e) => setForm({ ...form, scanType: e.target.value })}><option>Ultrasound</option><option>Anomaly scan</option><option>Growth scan</option><option>Laboratory report</option><option>Other</option></select></label>}
           </div>
           {form.type === 'blood_pressure' && <div className="grid sm:grid-cols-3 gap-3"><input required min="60" max="250" className={inputCls} type="number" placeholder="Systolic (SYS)" value={form.systolic} onChange={(e) => setForm({ ...form, systolic: e.target.value })} /><input required min="35" max="150" className={inputCls} type="number" placeholder="Diastolic (DIA)" value={form.diastolic} onChange={(e) => setForm({ ...form, diastolic: e.target.value })} /><input min="30" max="220" className={inputCls} type="number" placeholder="Pulse (optional)" value={form.pulse} onChange={(e) => setForm({ ...form, pulse: e.target.value })} /></div>}
           {form.type === 'scan_report' && <div className="grid sm:grid-cols-2 gap-3"><input required className={inputCls} placeholder="Report title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><label className="text-xs text-gray-500"><input required={!editing} className={inputCls} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={(e) => setForm({ ...form, file: e.target.files[0] || null })} />PDF/JPG/PNG/WEBP, maximum 8 MB {editing && '(leave empty to keep current file)'}</label></div>}
@@ -90,7 +93,7 @@ const Health = () => {
       </Card>}
 
       <Card>
-        <div className="flex flex-wrap justify-between gap-3 items-center mb-4"><SectionTitle>📋 Health record history</SectionTitle><select className="border rounded-lg px-3 py-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All records</option><option value="weight">Weight</option><option value="blood_pressure">Blood pressure</option><option value="scan_report">Scan reports</option></select></div>
+        <div className="flex flex-wrap justify-between gap-3 items-center mb-4"><SectionTitle>📋 Health record history</SectionTitle><select className="border rounded-lg px-3 py-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All records</option><option value="weight">{ht.weight}</option><option value="blood_pressure">{ht.bloodPressure}</option><option value="scan_report">Scan reports</option></select></div>
         <div className="space-y-4">
           {visible.length === 0 && <p className="text-center text-gray-400 py-8">No records found.</p>}
           {visible.map((r) => <article key={r.id} className="border border-gray-100 rounded-2xl p-4 bg-white">

@@ -48,6 +48,7 @@ export const api = {
   updateEmergencyContact: (id, data) => request(`/api/emergency/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteEmergencyContact: (id) => request(`/api/emergency/contacts/${id}`, { method: 'DELETE' }),
   getSosHistory: () => request('/api/emergency/sos'),
+  getNearbyPlaces: ({ lat, lng, radius = 5000, category = 'all' }) => request(`/api/places/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius=${encodeURIComponent(radius)}&category=${encodeURIComponent(category)}`),
   sendSos: (data) => request('/api/emergency/sos', { method: 'POST', body: JSON.stringify(data) }),
   askAssistant: (question) => request('/api/assistant', { method: 'POST', body: JSON.stringify({ question }) }),
 };

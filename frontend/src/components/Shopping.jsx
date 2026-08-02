@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api';
 import { Card, SectionTitle } from './Card';
+import { useLanguage } from '../context/LanguageContext';
 
 const COLOMBO_CENTER = { lat: 6.9271, lng: 79.8612, accuracy: null };
 
@@ -26,6 +27,8 @@ function getLocation() {
 }
 
 const Shopping = () => {
+  const { t } = useLanguage();
+  const f = t.finder;
   const [location, setLocation] = useState(null);
   const [manualLat, setManualLat] = useState('6.9271');
   const [manualLng, setManualLng] = useState('79.8612');
@@ -46,7 +49,7 @@ const Shopping = () => {
       const nextPlaces = data.places || [];
       setPlaces(nextPlaces);
       setSelected(nextPlaces[0] || null);
-      if (!nextPlaces.length) setError('No mapped places were found in this radius. Try 10–15 km or use the Google Maps search buttons.');
+      if (!nextPlaces.length) setError(f.noResults);
     } catch (err) {
       setPlaces([]);
       setSelected(null);
@@ -66,7 +69,8 @@ const Shopping = () => {
       setManualLng(String(coords.lng));
       await loadPlaces(coords);
     } catch (err) {
-      setError(err.message);
+      const message = err.message.includes('HTTPS') ? f.gpsHttps : err.message.includes('denied') ? t.emergency.denied : err.message.includes('supported') ? t.emergency.notSupported : t.emergency.failed;
+      setError(message);
       setLoading(false);
     }
   };
@@ -75,7 +79,7 @@ const Shopping = () => {
     const lat = Number(manualLat);
     const lng = Number(manualLng);
     if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
-      setError('Enter valid latitude and longitude values.');
+      setError(f.invalid);
       return;
     }
     const coords = { lat, lng, accuracy: null };
@@ -120,60 +124,60 @@ const Shopping = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
       <Card>
-        <SectionTitle>🗺️ Nearby Hospitals & Baby Shops</SectionTitle>
-        <p className="text-sm text-gray-500 mb-4">Use device GPS or enter coordinates manually. For local development, browser GPS normally works only on <strong>localhost</strong> or HTTPS.</p>
+        <SectionTitle>🗺️ {f.title}</SectionTitle>
+        <p className="text-sm text-gray-500 mb-4">{f.desc}</p>
 
         <div className="flex flex-wrap gap-2 mb-4">
           <button onClick={locateAndSearch} disabled={loading} className="rounded-full bg-purple-500 px-3 py-1.5 text-sm text-white disabled:opacity-50">
-            {loading ? 'Searching…' : '📍 Use my location'}
+            {loading ? t.loading : `📍 ${f.useLocation}`}
           </button>
-          <button onClick={useColombo} disabled={loading} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-sm text-purple-700 disabled:opacity-50">Use Colombo demo</button>
+          <button onClick={useColombo} disabled={loading} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-sm text-purple-700 disabled:opacity-50">{f.colombo}</button>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] mb-4">
-          <input value={manualLat} onChange={(e) => setManualLat(e.target.value)} className="field" placeholder="Latitude, e.g. 6.9271" inputMode="decimal" />
-          <input value={manualLng} onChange={(e) => setManualLng(e.target.value)} className="field" placeholder="Longitude, e.g. 79.8612" inputMode="decimal" />
-          <button onClick={useManualLocation} disabled={loading} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Search here</button>
+          <input value={manualLat} onChange={(e) => setManualLat(e.target.value)} className="field" placeholder={f.latitude} inputMode="decimal" />
+          <input value={manualLng} onChange={(e) => setManualLng(e.target.value)} className="field" placeholder={f.longitude} inputMode="decimal" />
+          <button onClick={useManualLocation} disabled={loading} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{f.searchHere}</button>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
-          {[['all', 'All places'], ['hospital', '🏥 Hospitals'], ['shop', '🛍️ Baby shops']].map(([value, label]) => (
+          {[['all', f.all], ['hospital', `🏥 ${f.hospitals}`], ['shop', `🛍️ ${f.shops}`]].map(([value, label]) => (
             <button key={value} onClick={() => changeCategory(value)} disabled={!location || loading}
               className={`px-3 py-1.5 rounded-full text-sm ${category === value ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-700 border border-amber-200'} disabled:opacity-50`}>
               {label}
             </button>
           ))}
           <select value={radius} onChange={changeRadius} disabled={!location || loading} className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 disabled:opacity-50">
-            <option value={3000}>Within 3 km</option>
-            <option value={5000}>Within 5 km</option>
-            <option value={10000}>Within 10 km</option>
-            <option value={15000}>Within 15 km</option>
+            <option value={3000}>{f.within.replace('{km}', '3')}</option>
+            <option value={5000}>{f.within.replace('{km}', '5')}</option>
+            <option value={10000}>{f.within.replace('{km}', '10')}</option>
+            <option value={15000}>{f.within.replace('{km}', '15')}</option>
           </select>
         </div>
 
-        {location && <p className="mb-3 text-xs text-green-700">Search centre: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}{location.accuracy ? ` (about ${Math.round(location.accuracy)} m accuracy)` : ''}</p>}
+        {location && <p className="mb-3 text-xs text-green-700">{f.centre}: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}{location.accuracy ? ` (about ${Math.round(location.accuracy)} m accuracy)` : ''}</p>}
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
         {location && (
           <div className="mb-4 flex flex-wrap gap-2">
-            <a href={hospitalSearchUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">Open hospitals in Google Maps</a>
-            <a href={babyShopSearchUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700">Open baby shops in Google Maps</a>
+            <a href={hospitalSearchUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">{f.openHospitals}</a>
+            <a href={babyShopSearchUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700">{f.openShops}</a>
           </div>
         )}
 
         <div className="overflow-hidden rounded-2xl border border-amber-100 bg-gray-100">
           <iframe title="Nearby place map" src={mapUrl} className="h-72 w-full" loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
         </div>
-        <p className="mt-2 text-[11px] text-gray-400">Map and place data © OpenStreetMap contributors. Always call ahead to confirm services and opening hours.</p>
+        <p className="mt-2 text-[11px] text-gray-400">{f.mapNote}</p>
       </Card>
 
       <Card>
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <SectionTitle>Nearby results</SectionTitle>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by name or area" className="field sm:max-w-xs" />
+          <SectionTitle>{f.results}</SectionTitle>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={f.filter} className="field sm:max-w-xs" />
         </div>
 
-        {!loading && !error && filteredPlaces.length === 0 && <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Choose your location above to begin searching.</p>}
+        {!loading && !error && filteredPlaces.length === 0 && <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{f.start}</p>}
         <div className="space-y-3">
           {filteredPlaces.map((place) => (
             <button key={place.id} onClick={() => setSelected(place)} className={`w-full rounded-2xl border p-4 text-left transition ${selected?.id === place.id ? 'border-amber-400 bg-amber-50' : 'border-gray-100 bg-white hover:border-amber-200'}`}>
@@ -193,9 +197,9 @@ const Shopping = () => {
           <div className="mt-4 rounded-2xl bg-purple-50 p-4">
             <p className="font-semibold text-purple-800">Selected: {selected.name}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {directionsUrl && <a href={directionsUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-purple-500 px-4 py-2 text-sm font-medium text-white">Get directions</a>}
-              {selected.phone && <a href={`tel:${selected.phone.replace(/[^+\d]/g, '')}`} className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-purple-700 border border-purple-200">Call</a>}
-              {selected.website && <a href={selected.website} target="_blank" rel="noreferrer" className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-purple-700 border border-purple-200">Website</a>}
+              {directionsUrl && <a href={directionsUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-purple-500 px-4 py-2 text-sm font-medium text-white">{f.directions}</a>}
+              {selected.phone && <a href={`tel:${selected.phone.replace(/[^+\d]/g, '')}`} className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-purple-700 border border-purple-200">{t.call}</a>}
+              {selected.website && <a href={selected.website} target="_blank" rel="noreferrer" className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-purple-700 border border-purple-200">{t.view}</a>}
             </div>
           </div>
         )}
