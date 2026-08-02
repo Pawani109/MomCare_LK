@@ -547,6 +547,111 @@ app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), (req,
   });
 });
 
+
+
+// ---- Nearby hospital and baby-shop finder ----
+// Uses OpenStreetMap data through the Overpass API. Results are cached briefly
+// to reduce load on the community service and coordinates are validated here.
+const nearbyCache = new Map();
+
+function distanceKm(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => value * Math.PI / 180;
+  const earthRadius = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function placeType(tags = {}) {
+  if (['hospital', 'clinic', 'doctors'].includes(tags.amenity) || tags.healthcare) return 'hospital';
+  return 'shop';
+}
+
+function displayAddress(tags = {}) {
+  return [tags['addr:housenumber'], tags['addr:street'], tags['addr:suburb'], tags['addr:city'] || tags['addr:town'] || tags['addr:village']]
+    .filter(Boolean).join(', ');
+}
+
+app.get('/api/places/nearby', requireAuth, async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  const radius = Math.min(10000, Math.max(1000, Number(req.query.radius) || 5000));
+  const category = ['all', 'hospital', 'shop'].includes(req.query.category) ? req.query.category : 'all';
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+    return res.status(400).json({ error: 'Valid latitude and longitude are required' });
+  }
+
+  const roundedLat = lat.toFixed(3);
+  const roundedLng = lng.toFixed(3);
+  const cacheKey = `${roundedLat}:${roundedLng}:${radius}:${category}`;
+  const cached = nearbyCache.get(cacheKey);
+  if (cached && Date.now() - cached.createdAt < 5 * 60 * 1000) return res.json(cached.payload);
+
+  const hospitalSelectors = `
+    node[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
+    way[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
+    relation[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
+    node[healthcare](around:${radius},${lat},${lng});
+    way[healthcare](around:${radius},${lat},${lng});`;
+  const shopSelectors = `
+    node[shop~"baby_goods|toys|children|clothes"](around:${radius},${lat},${lng});
+    way[shop~"baby_goods|toys|children|clothes"](around:${radius},${lat},${lng});
+    relation[shop~"baby_goods|toys|children|clothes"](around:${radius},${lat},${lng});`;
+  const selectors = category === 'hospital' ? hospitalSelectors : category === 'shop' ? shopSelectors : `${hospitalSelectors}\n${shopSelectors}`;
+  const query = `[out:json][timeout:20];(${selectors});out center tags;`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 22000);
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'User-Agent': 'MomCare-LK-Educational-Demo/1.0',
+      },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!response.ok) throw new Error(`Map service returned ${response.status}`);
+    const data = await response.json();
+    const unique = new Map();
+    for (const item of data.elements || []) {
+      const itemLat = item.lat ?? item.center?.lat;
+      const itemLng = item.lon ?? item.center?.lon;
+      if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) continue;
+      const tags = item.tags || {};
+      const type = placeType(tags);
+      if (category !== 'all' && type !== category) continue;
+      const name = tags.name || tags['name:en'] || (type === 'hospital' ? 'Unnamed healthcare facility' : 'Unnamed baby shop');
+      const key = `${type}:${name.toLowerCase()}:${itemLat.toFixed(4)}:${itemLng.toFixed(4)}`;
+      if (unique.has(key)) continue;
+      const distance = distanceKm(lat, lng, itemLat, itemLng);
+      unique.set(key, {
+        id: `${item.type}-${item.id}`,
+        name,
+        type,
+        subtype: tags.amenity || tags.healthcare || tags.shop || '',
+        lat: itemLat,
+        lng: itemLng,
+        distanceKm: Number(distance.toFixed(2)),
+        address: displayAddress(tags),
+        phone: tags.phone || tags['contact:phone'] || '',
+        website: tags.website || tags['contact:website'] || '',
+        openingHours: tags.opening_hours || '',
+      });
+    }
+    const places = [...unique.values()].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 30);
+    const payload = { center: { lat, lng }, radius, category, places, source: 'OpenStreetMap contributors', fetchedAt: new Date().toISOString() };
+    nearbyCache.set(cacheKey, { createdAt: Date.now(), payload });
+    res.json(payload);
+  } catch (error) {
+    const message = error.name === 'AbortError' ? 'The map service took too long to respond. Please try again.' : 'Nearby places could not be loaded right now. Please try again.';
+    res.status(503).json({ error: message });
+  }
+});
+
 // Simulated AI assistant — will be connected to a real AI API later.
 const aiAnswers = [
   { keywords: ['sleep', 'insomnia'], answer: 'Try sleeping on your left side with a pillow between your knees. Avoid screens an hour before bed. If insomnia persists, mention it at your next clinic visit.' },
