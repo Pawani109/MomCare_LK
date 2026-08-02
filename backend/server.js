@@ -67,7 +67,7 @@ let forumPosts = [
     author: 'Sanduni',
     weekTag: 'Week 18',
     text: 'Any tips for managing morning sickness while at office meetings?',
-    replies: 4,
+    authorId: 101, authorRole: 'mom', topic: 'symptoms', anonymous: false, replies: [], reports: [], removed: false,
     createdAt: '2026-07-22T08:30:00Z',
   },
   {
@@ -75,7 +75,7 @@ let forumPosts = [
     author: 'Fathima',
     weekTag: 'Week 30',
     text: 'Which hospitals in Colombo have the best maternity packages?',
-    replies: 7,
+    authorId: 102, authorRole: 'mom', topic: 'hospitals', anonymous: false, replies: [], reports: [], removed: false,
     createdAt: '2026-07-23T14:10:00Z',
   },
 ];
@@ -422,20 +422,101 @@ app.post('/api/records/:id/comments', requireAuth, (req, res) => {
   res.status(201).json(comment);
 });
 
-app.get('/api/forum', (req, res) => res.json(forumPosts));
-app.post('/api/forum', (req, res) => {
-  const { author, weekTag, text } = req.body;
-  const post = { id: nextId++, author, weekTag, text, replies: 0, createdAt: new Date().toISOString() };
-  forumPosts.unshift(post);
-  res.status(201).json(post);
+function forumPostView(post, viewer) {
+  const replies = (post.replies || []).filter((r) => !r.removed).map((r) => ({
+    ...r,
+    canDelete: r.authorId === viewer.id,
+  }));
+  return {
+    ...post,
+    replies,
+    replyCount: replies.length,
+    reportCount: (post.reports || []).length,
+    canDelete: post.authorId === viewer.id,
+    hasReported: (post.reports || []).some((r) => r.userId === viewer.id),
+  };
+}
+
+app.get('/api/forum', requireAuth, (req, res) => {
+  const posts = forumPosts
+    .filter((p) => !p.removed)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((p) => forumPostView(p, req.user));
+  res.json(posts);
 });
 
-app.post('/api/mood', (req, res) => {
-  const entry = { id: nextId++, mood: req.body.mood, date: new Date().toISOString() };
+app.post('/api/forum', requireAuth, (req, res) => {
+  const text = String(req.body.text || '').trim();
+  const topic = String(req.body.topic || 'general').trim().slice(0, 30);
+  const anonymous = Boolean(req.body.anonymous);
+  if (text.length < 3 || text.length > 1000) return res.status(400).json({ error: 'Post must be between 3 and 1000 characters' });
+  const post = {
+    id: nextId++, authorId: req.user.id,
+    author: anonymous ? 'Anonymous member' : req.user.name,
+    authorRole: req.user.role, anonymous, topic, text,
+    replies: [], reports: [], removed: false,
+    createdAt: new Date().toISOString(),
+  };
+  forumPosts.unshift(post);
+  res.status(201).json(forumPostView(post, req.user));
+});
+
+app.post('/api/forum/:id/replies', requireAuth, (req, res) => {
+  const post = forumPosts.find((p) => p.id === Number(req.params.id) && !p.removed);
+  if (!post) return res.status(404).json({ error: 'Discussion not found' });
+  const text = String(req.body.text || '').trim();
+  if (text.length < 2 || text.length > 600) return res.status(400).json({ error: 'Reply must be between 2 and 600 characters' });
+  const reply = { id: nextId++, authorId: req.user.id, author: req.user.name, authorRole: req.user.role, text, removed: false, createdAt: new Date().toISOString() };
+  post.replies = post.replies || [];
+  post.replies.push(reply);
+  res.status(201).json({ ...reply, canDelete: true });
+});
+
+app.delete('/api/forum/:id', requireAuth, (req, res) => {
+  const post = forumPosts.find((p) => p.id === Number(req.params.id) && !p.removed);
+  if (!post) return res.status(404).json({ error: 'Discussion not found' });
+  if (post.authorId !== req.user.id) return res.status(403).json({ error: 'You can only delete your own discussion' });
+  post.removed = true;
+  res.json({ message: 'Discussion deleted' });
+});
+
+app.delete('/api/forum/:postId/replies/:replyId', requireAuth, (req, res) => {
+  const post = forumPosts.find((p) => p.id === Number(req.params.postId) && !p.removed);
+  const reply = post?.replies?.find((r) => r.id === Number(req.params.replyId) && !r.removed);
+  if (!reply) return res.status(404).json({ error: 'Reply not found' });
+  if (reply.authorId !== req.user.id) return res.status(403).json({ error: 'You can only delete your own reply' });
+  reply.removed = true;
+  res.json({ message: 'Reply deleted' });
+});
+
+app.post('/api/forum/:id/report', requireAuth, (req, res) => {
+  const post = forumPosts.find((p) => p.id === Number(req.params.id) && !p.removed);
+  if (!post) return res.status(404).json({ error: 'Discussion not found' });
+  post.reports = post.reports || [];
+  if (post.reports.some((r) => r.userId === req.user.id)) return res.status(409).json({ error: 'You have already reported this discussion' });
+  post.reports.push({ userId: req.user.id, reason: String(req.body.reason || 'inappropriate').slice(0, 80), createdAt: new Date().toISOString() });
+  res.status(201).json({ message: 'Report submitted for review' });
+});
+
+app.post('/api/mood', requireAuth, requireRole('mom'), (req, res) => {
+  const mood = Number(req.body.mood);
+  const note = String(req.body.note || '').trim();
+  if (!Number.isInteger(mood) || mood < 1 || mood > 5) return res.status(400).json({ error: 'Mood must be from 1 to 5' });
+  if (note.length > 300) return res.status(400).json({ error: 'Mood note must be 300 characters or fewer' });
+  const today = new Date().toISOString().slice(0, 10);
+  const existing = moodLog.find((e) => e.userId === req.user.id && e.date.slice(0, 10) === today);
+  if (existing) {
+    existing.mood = mood; existing.note = note; existing.date = new Date().toISOString();
+    return res.json(existing);
+  }
+  const entry = { id: nextId++, userId: req.user.id, familyId: req.user.familyId, mood, note, date: new Date().toISOString() };
   moodLog.push(entry);
   res.status(201).json(entry);
 });
-app.get('/api/mood', (req, res) => res.json(moodLog));
+
+app.get('/api/mood', requireAuth, requireRole('mom'), (req, res) => {
+  res.json(moodLog.filter((e) => e.userId === req.user.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30));
+});
 
 function cleanPhone(value) {
   return String(value || '').replace(/[^+\d]/g, '');
