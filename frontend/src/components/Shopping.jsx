@@ -1,22 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../api';
 import { Card, SectionTitle } from './Card';
 
-const DEFAULT_CENTER = { lat: 6.9271, lng: 79.8612 };
+const COLOMBO_CENTER = { lat: 6.9271, lng: 79.8612, accuracy: null };
 
 function getLocation() {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('Location is not supported by this browser.'));
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+      return reject(new Error('Browser location needs HTTPS or localhost. Use the manual location option below.'));
+    }
+    if (!navigator.geolocation) return reject(new Error('Location is not supported by this browser. Use manual coordinates.'));
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }),
-      (error) => reject(new Error(error.code === 1 ? 'Location permission was denied. Enable it in your browser settings and try again.' : 'Your location could not be detected.')),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+      (error) => {
+        const messages = {
+          1: 'Location permission was denied. Enable location permission or use manual coordinates.',
+          2: 'Your device could not determine its location. Use manual coordinates.',
+          3: 'Location detection timed out. Try again or use manual coordinates.',
+        };
+        reject(new Error(messages[error.code] || 'Your location could not be detected.'));
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
     );
   });
 }
 
 const Shopping = () => {
   const [location, setLocation] = useState(null);
+  const [manualLat, setManualLat] = useState('6.9271');
+  const [manualLng, setManualLng] = useState('79.8612');
   const [places, setPlaces] = useState([]);
   const [category, setCategory] = useState('all');
   const [radius, setRadius] = useState(5000);
@@ -25,14 +37,16 @@ const Shopping = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
 
-  const loadPlaces = async (coords = location, nextCategory = category, nextRadius = radius) => {
+  const loadPlaces = async (coords, nextCategory = category, nextRadius = radius) => {
     if (!coords) return;
     setLoading(true);
     setError('');
     try {
       const data = await api.getNearbyPlaces({ ...coords, category: nextCategory, radius: nextRadius });
-      setPlaces(data.places || []);
-      setSelected((data.places || [])[0] || null);
+      const nextPlaces = data.places || [];
+      setPlaces(nextPlaces);
+      setSelected(nextPlaces[0] || null);
+      if (!nextPlaces.length) setError('No mapped places were found in this radius. Try 10–15 km or use the Google Maps search buttons.');
     } catch (err) {
       setPlaces([]);
       setSelected(null);
@@ -48,6 +62,8 @@ const Shopping = () => {
     try {
       const coords = await getLocation();
       setLocation(coords);
+      setManualLat(String(coords.lat));
+      setManualLng(String(coords.lng));
       await loadPlaces(coords);
     } catch (err) {
       setError(err.message);
@@ -55,7 +71,24 @@ const Shopping = () => {
     }
   };
 
-  useEffect(() => { locateAndSearch(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const useManualLocation = async () => {
+    const lat = Number(manualLat);
+    const lng = Number(manualLng);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setError('Enter valid latitude and longitude values.');
+      return;
+    }
+    const coords = { lat, lng, accuracy: null };
+    setLocation(coords);
+    await loadPlaces(coords);
+  };
+
+  const useColombo = async () => {
+    setManualLat(String(COLOMBO_CENTER.lat));
+    setManualLng(String(COLOMBO_CENTER.lng));
+    setLocation(COLOMBO_CENTER);
+    await loadPlaces(COLOMBO_CENTER);
+  };
 
   const filteredPlaces = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -63,30 +96,45 @@ const Shopping = () => {
     return places.filter((place) => `${place.name} ${place.address} ${place.subtype}`.toLowerCase().includes(q));
   }, [places, search]);
 
-  const center = selected || location || DEFAULT_CENTER;
-  const delta = 0.025;
+  const center = selected || location || COLOMBO_CENTER;
+  const delta = 0.035;
   const bbox = `${center.lng - delta},${center.lat - delta},${center.lng + delta},${center.lat + delta}`;
   const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${center.lat},${center.lng}`)}`;
   const directionsUrl = selected && location
     ? `https://www.google.com/maps/dir/?api=1&origin=${location.lat},${location.lng}&destination=${selected.lat},${selected.lng}&travelmode=driving`
     : null;
+  const hospitalSearchUrl = location ? `https://www.google.com/maps/search/hospitals/@${location.lat},${location.lng},14z` : null;
+  const babyShopSearchUrl = location ? `https://www.google.com/maps/search/baby+shops/@${location.lat},${location.lng},14z` : null;
 
   const changeCategory = (next) => {
     setCategory(next);
-    loadPlaces(location, next, radius);
+    if (location) loadPlaces(location, next, radius);
   };
 
   const changeRadius = (event) => {
     const next = Number(event.target.value);
     setRadius(next);
-    loadPlaces(location, category, next);
+    if (location) loadPlaces(location, category, next);
   };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
       <Card>
         <SectionTitle>🗺️ Nearby Hospitals & Baby Shops</SectionTitle>
-        <p className="text-sm text-gray-500 mb-4">Search around your current location. Results are sorted by straight-line distance and come from OpenStreetMap.</p>
+        <p className="text-sm text-gray-500 mb-4">Use device GPS or enter coordinates manually. For local development, browser GPS normally works only on <strong>localhost</strong> or HTTPS.</p>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button onClick={locateAndSearch} disabled={loading} className="rounded-full bg-purple-500 px-3 py-1.5 text-sm text-white disabled:opacity-50">
+            {loading ? 'Searching…' : '📍 Use my location'}
+          </button>
+          <button onClick={useColombo} disabled={loading} className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-sm text-purple-700 disabled:opacity-50">Use Colombo demo</button>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] mb-4">
+          <input value={manualLat} onChange={(e) => setManualLat(e.target.value)} className="field" placeholder="Latitude, e.g. 6.9271" inputMode="decimal" />
+          <input value={manualLng} onChange={(e) => setManualLng(e.target.value)} className="field" placeholder="Longitude, e.g. 79.8612" inputMode="decimal" />
+          <button onClick={useManualLocation} disabled={loading} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Search here</button>
+        </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
           {[['all', 'All places'], ['hospital', '🏥 Hospitals'], ['shop', '🛍️ Baby shops']].map(([value, label]) => (
@@ -99,14 +147,19 @@ const Shopping = () => {
             <option value={3000}>Within 3 km</option>
             <option value={5000}>Within 5 km</option>
             <option value={10000}>Within 10 km</option>
+            <option value={15000}>Within 15 km</option>
           </select>
-          <button onClick={locateAndSearch} disabled={loading} className="rounded-full bg-purple-500 px-3 py-1.5 text-sm text-white disabled:opacity-50">
-            {loading ? 'Searching…' : '📍 Use my location'}
-          </button>
         </div>
 
-        {location && <p className="mb-3 text-xs text-green-700">Location detected{location.accuracy ? ` (approximately ${Math.round(location.accuracy)} m accuracy)` : ''}. Your coordinates are used only for this nearby search.</p>}
+        {location && <p className="mb-3 text-xs text-green-700">Search centre: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}{location.accuracy ? ` (about ${Math.round(location.accuracy)} m accuracy)` : ''}</p>}
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        {location && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <a href={hospitalSearchUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">Open hospitals in Google Maps</a>
+            <a href={babyShopSearchUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700">Open baby shops in Google Maps</a>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-2xl border border-amber-100 bg-gray-100">
           <iframe title="Nearby place map" src={mapUrl} className="h-72 w-full" loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
@@ -120,10 +173,7 @@ const Shopping = () => {
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by name or area" className="field sm:max-w-xs" />
         </div>
 
-        {!loading && !error && filteredPlaces.length === 0 && (
-          <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">No matching places were found within this radius. Try 10 km or select another category.</p>
-        )}
-
+        {!loading && !error && filteredPlaces.length === 0 && <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Choose your location above to begin searching.</p>}
         <div className="space-y-3">
           {filteredPlaces.map((place) => (
             <button key={place.id} onClick={() => setSelected(place)} className={`w-full rounded-2xl border p-4 text-left transition ${selected?.id === place.id ? 'border-amber-400 bg-amber-50' : 'border-gray-100 bg-white hover:border-amber-200'}`}>
@@ -135,7 +185,6 @@ const Shopping = () => {
                 </div>
                 <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">{place.distanceKm.toFixed(1)} km</span>
               </div>
-              {(place.phone || place.openingHours) && <p className="mt-2 text-xs text-gray-500">{place.phone ? `☎ ${place.phone}` : ''}{place.phone && place.openingHours ? ' · ' : ''}{place.openingHours ? `🕒 ${place.openingHours}` : ''}</p>}
             </button>
           ))}
         </div>

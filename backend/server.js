@@ -550,9 +550,14 @@ app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), (req,
 
 
 // ---- Nearby hospital and baby-shop finder ----
-// Uses OpenStreetMap data through the Overpass API. Results are cached briefly
-// to reduce load on the community service and coordinates are validated here.
+// Uses OpenStreetMap Overpass data. Multiple public endpoints are tried because
+// any single community endpoint may temporarily be unavailable or rate-limited.
 const nearbyCache = new Map();
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.nchc.org.tw/api/interpreter',
+];
 
 function distanceKm(lat1, lon1, lat2, lon2) {
   const toRad = (value) => value * Math.PI / 180;
@@ -573,18 +578,42 @@ function displayAddress(tags = {}) {
     .filter(Boolean).join(', ');
 }
 
+async function queryOverpass(query) {
+  let lastError;
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 18000);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'User-Agent': 'MomCare-LK-Educational-Demo/1.1',
+        },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Map service returned ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastError || new Error('No map service was available');
+}
+
 app.get('/api/places/nearby', requireAuth, async (req, res) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
-  const radius = Math.min(10000, Math.max(1000, Number(req.query.radius) || 5000));
+  const radius = Math.min(15000, Math.max(1000, Number(req.query.radius) || 5000));
   const category = ['all', 'hospital', 'shop'].includes(req.query.category) ? req.query.category : 'all';
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
     return res.status(400).json({ error: 'Valid latitude and longitude are required' });
   }
 
-  const roundedLat = lat.toFixed(3);
-  const roundedLng = lng.toFixed(3);
-  const cacheKey = `${roundedLat}:${roundedLng}:${radius}:${category}`;
+  const cacheKey = `${lat.toFixed(3)}:${lng.toFixed(3)}:${radius}:${category}`;
   const cached = nearbyCache.get(cacheKey);
   if (cached && Date.now() - cached.createdAt < 5 * 60 * 1000) return res.json(cached.payload);
 
@@ -593,29 +622,19 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
     way[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
     relation[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
     node[healthcare](around:${radius},${lat},${lng});
-    way[healthcare](around:${radius},${lat},${lng});`;
+    way[healthcare](around:${radius},${lat},${lng});
+    relation[healthcare](around:${radius},${lat},${lng});`;
   const shopSelectors = `
-    node[shop~"baby_goods|toys|children|clothes"](around:${radius},${lat},${lng});
-    way[shop~"baby_goods|toys|children|clothes"](around:${radius},${lat},${lng});
-    relation[shop~"baby_goods|toys|children|clothes"](around:${radius},${lat},${lng});`;
+    node[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
+    way[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
+    relation[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
+    node["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});
+    way["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});`;
   const selectors = category === 'hospital' ? hospitalSelectors : category === 'shop' ? shopSelectors : `${hospitalSelectors}\n${shopSelectors}`;
-  const query = `[out:json][timeout:20];(${selectors});out center tags;`;
+  const query = `[out:json][timeout:25];(${selectors});out center tags;`;
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 22000);
-    const response = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-        'User-Agent': 'MomCare-LK-Educational-Demo/1.0',
-      },
-      body: `data=${encodeURIComponent(query)}`,
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!response.ok) throw new Error(`Map service returned ${response.status}`);
-    const data = await response.json();
+    const data = await queryOverpass(query);
     const unique = new Map();
     for (const item of data.elements || []) {
       const itemLat = item.lat ?? item.center?.lat;
@@ -627,7 +646,6 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
       const name = tags.name || tags['name:en'] || (type === 'hospital' ? 'Unnamed healthcare facility' : 'Unnamed baby shop');
       const key = `${type}:${name.toLowerCase()}:${itemLat.toFixed(4)}:${itemLng.toFixed(4)}`;
       if (unique.has(key)) continue;
-      const distance = distanceKm(lat, lng, itemLat, itemLng);
       unique.set(key, {
         id: `${item.type}-${item.id}`,
         name,
@@ -635,20 +653,23 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
         subtype: tags.amenity || tags.healthcare || tags.shop || '',
         lat: itemLat,
         lng: itemLng,
-        distanceKm: Number(distance.toFixed(2)),
+        distanceKm: Number(distanceKm(lat, lng, itemLat, itemLng).toFixed(2)),
         address: displayAddress(tags),
         phone: tags.phone || tags['contact:phone'] || '',
         website: tags.website || tags['contact:website'] || '',
         openingHours: tags.opening_hours || '',
       });
     }
-    const places = [...unique.values()].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 30);
+    const places = [...unique.values()].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 40);
     const payload = { center: { lat, lng }, radius, category, places, source: 'OpenStreetMap contributors', fetchedAt: new Date().toISOString() };
     nearbyCache.set(cacheKey, { createdAt: Date.now(), payload });
-    res.json(payload);
+    return res.json(payload);
   } catch (error) {
-    const message = error.name === 'AbortError' ? 'The map service took too long to respond. Please try again.' : 'Nearby places could not be loaded right now. Please try again.';
-    res.status(503).json({ error: message });
+    console.error('Nearby finder error:', error.message);
+    return res.status(503).json({
+      error: 'The live place service is temporarily unavailable. Use the Google Maps fallback buttons shown on the page, or try again shortly.',
+      fallback: true,
+    });
   }
 });
 
