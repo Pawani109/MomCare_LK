@@ -43,6 +43,11 @@ export const api = {
   getForum: () => request('/api/forum'),
   addPost: (data) => request('/api/forum', { method: 'POST', body: JSON.stringify(data) }),
   logMood: (mood) => request('/api/mood', { method: 'POST', body: JSON.stringify({ mood }) }),
-  sendSos: (location) => request('/api/sos', { method: 'POST', body: JSON.stringify({ location }) }),
+  getEmergencyContacts: () => request('/api/emergency/contacts'),
+  addEmergencyContact: (data) => request('/api/emergency/contacts', { method: 'POST', body: JSON.stringify(data) }),
+  updateEmergencyContact: (id, data) => request(`/api/emergency/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteEmergencyContact: (id) => request(`/api/emergency/contacts/${id}`, { method: 'DELETE' }),
+  getSosHistory: () => request('/api/emergency/sos'),
+  sendSos: (data) => request('/api/emergency/sos', { method: 'POST', body: JSON.stringify(data) }),
   askAssistant: (question) => request('/api/assistant', { method: 'POST', body: JSON.stringify({ question }) }),
 };

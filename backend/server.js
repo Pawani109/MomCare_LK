@@ -36,10 +36,6 @@ const demoUser = {
   role: 'mom',
   dueDate: '2026-11-20',
   pregnancyStartDate: '2026-02-13',
-  emergencyContacts: [
-    { name: 'Kasun Perera (Husband)', phone: '+94 77 123 4567' },
-    { name: 'Suwa Seriya Ambulance', phone: '1990' },
-  ],
 };
 
 let pregnancyProfiles = [
@@ -88,6 +84,10 @@ let careComments = [
   { id: 90, familyId: 1, authorId: 3, authorName: 'Dr. Silva', authorRole: 'doctor', category: 'general', text: 'Continue the scheduled antenatal visits and bring the clinic book to the next appointment.', createdAt: '2026-07-24T09:00:00Z' },
 ];
 let moodLog = [];
+let emergencyContacts = [
+  { id: 70, familyId: 1, createdBy: 1, name: 'Kasun Perera', relationship: 'Partner', phone: '+94771234567', priority: 1, active: true, createdAt: '2026-07-20T08:00:00Z' },
+  { id: 71, familyId: 1, createdBy: 1, name: 'Emergency ambulance', relationship: 'Emergency service', phone: '1990', priority: 2, active: true, createdAt: '2026-07-20T08:05:00Z' },
+];
 let sosEvents = [];
 let nextId = 100;
 
@@ -208,9 +208,9 @@ function familyMom(req) {
 }
 
 const permissionsByRole = {
-  mom: { editPregnancy: true, manageAppointments: true, addHealthRecords: true, addCareComments: true, viewFamilyData: true },
-  partner: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, viewFamilyData: true },
-  doctor: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, viewFamilyData: true },
+  mom: { editPregnancy: true, manageAppointments: true, addHealthRecords: true, addCareComments: true, manageEmergencyContacts: true, triggerSos: true, viewFamilyData: true },
+  partner: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, manageEmergencyContacts: false, triggerSos: true, viewFamilyData: true },
+  doctor: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, manageEmergencyContacts: false, triggerSos: false, viewFamilyData: true },
 };
 
 function pregnancySummary(lmpDate) {
@@ -255,7 +255,7 @@ app.get('/api/profile', requireAuth, (req, res) => {
   const profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
   if (!mom || !profile) return res.status(404).json({ error: 'Mother profile not found for this family' });
   const summary = pregnancySummary(profile.lmpDate);
-  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, ...summary });
+  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, emergencyContacts: emergencyContacts.filter((c) => c.familyId === req.user.familyId && c.active).sort((a, b) => a.priority - b.priority), ...summary });
 });
 
 app.get('/api/pregnancy', requireAuth, (req, res) => {
@@ -437,15 +437,114 @@ app.post('/api/mood', (req, res) => {
 });
 app.get('/api/mood', (req, res) => res.json(moodLog));
 
-app.post('/api/sos', (req, res) => {
+function cleanPhone(value) {
+  return String(value || '').replace(/[^+\d]/g, '');
+}
+
+function validateContact(body) {
+  const name = String(body.name || '').trim();
+  const relationship = String(body.relationship || '').trim();
+  const phone = cleanPhone(body.phone);
+  if (name.length < 2 || name.length > 80) return 'Contact name must be between 2 and 80 characters';
+  if (relationship.length > 50) return 'Relationship must be 50 characters or fewer';
+  if (!/^\+?\d{3,15}$/.test(phone)) return 'Enter a valid phone number';
+  return null;
+}
+
+app.get('/api/emergency/contacts', requireAuth, (req, res) => {
+  const contacts = emergencyContacts
+    .filter((item) => item.familyId === req.user.familyId && item.active)
+    .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+  res.json({ contacts, canManage: req.user.role === 'mom', canTrigger: ['mom', 'partner'].includes(req.user.role) });
+});
+
+app.post('/api/emergency/contacts', requireAuth, requireRole('mom'), (req, res) => {
+  const current = emergencyContacts.filter((item) => item.familyId === req.user.familyId && item.active);
+  if (current.length >= 5) return res.status(400).json({ error: 'You can save up to 5 emergency contacts' });
+  const error = validateContact(req.body);
+  if (error) return res.status(400).json({ error });
+  const phone = cleanPhone(req.body.phone);
+  if (current.some((item) => item.phone === phone)) return res.status(409).json({ error: 'This phone number is already saved' });
+  const contact = {
+    id: nextId++, familyId: req.user.familyId, createdBy: req.user.id,
+    name: String(req.body.name).trim(), relationship: String(req.body.relationship || '').trim(), phone,
+    priority: Number.isInteger(Number(req.body.priority)) ? Math.max(1, Math.min(5, Number(req.body.priority))) : current.length + 1,
+    active: true, createdAt: new Date().toISOString(),
+  };
+  emergencyContacts.push(contact);
+  res.status(201).json(contact);
+});
+
+app.put('/api/emergency/contacts/:id', requireAuth, requireRole('mom'), (req, res) => {
+  const contact = emergencyContacts.find((item) => item.id === Number(req.params.id) && item.familyId === req.user.familyId && item.active);
+  if (!contact) return res.status(404).json({ error: 'Emergency contact not found' });
+  const candidate = { ...contact, ...req.body };
+  const error = validateContact(candidate);
+  if (error) return res.status(400).json({ error });
+  const phone = cleanPhone(candidate.phone);
+  if (emergencyContacts.some((item) => item.id !== contact.id && item.familyId === req.user.familyId && item.active && item.phone === phone)) {
+    return res.status(409).json({ error: 'This phone number is already saved' });
+  }
+  contact.name = String(candidate.name).trim();
+  contact.relationship = String(candidate.relationship || '').trim();
+  contact.phone = phone;
+  contact.priority = Number.isInteger(Number(candidate.priority)) ? Math.max(1, Math.min(5, Number(candidate.priority))) : contact.priority;
+  contact.updatedAt = new Date().toISOString();
+  res.json(contact);
+});
+
+app.delete('/api/emergency/contacts/:id', requireAuth, requireRole('mom'), (req, res) => {
+  const contact = emergencyContacts.find((item) => item.id === Number(req.params.id) && item.familyId === req.user.familyId && item.active);
+  if (!contact) return res.status(404).json({ error: 'Emergency contact not found' });
+  contact.active = false;
+  contact.deletedAt = new Date().toISOString();
+  res.json({ message: 'Emergency contact removed' });
+});
+
+app.get('/api/emergency/sos', requireAuth, (req, res) => {
+  const events = sosEvents
+    .filter((item) => item.familyId === req.user.familyId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 20);
+  res.json(events);
+});
+
+app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), (req, res) => {
+  const contacts = emergencyContacts
+    .filter((item) => item.familyId === req.user.familyId && item.active)
+    .sort((a, b) => a.priority - b.priority);
+  if (!contacts.length) return res.status(400).json({ error: 'Save at least one emergency contact before using SOS' });
+
+  let location = null;
+  if (req.body.location != null) {
+    const lat = Number(req.body.location.lat);
+    const lng = Number(req.body.location.lng);
+    const accuracy = req.body.location.accuracy == null ? null : Number(req.body.location.accuracy);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      return res.status(400).json({ error: 'Location coordinates are invalid' });
+    }
+    location = { lat, lng, accuracy: Number.isFinite(accuracy) ? Math.max(0, accuracy) : null };
+  }
+
+  const mapUrl = location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : null;
+  const message = [
+    `SOS from ${req.user.name}. I may need urgent help.`,
+    mapUrl ? `My current location: ${mapUrl}` : 'My location could not be captured. Please call me immediately.',
+    `Alert created: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Colombo' })}`,
+  ].join('\n');
   const event = {
-    id: nextId++,
-    location: req.body.location || { lat: 6.9271, lng: 79.8612 },
-    contactsNotified: demoUser.emergencyContacts,
-    createdAt: new Date().toISOString(),
+    id: nextId++, familyId: req.user.familyId, triggeredBy: req.user.id,
+    triggeredByName: req.user.name, triggeredByRole: req.user.role,
+    location, mapUrl, message,
+    contacts: contacts.map(({ id, name, relationship, phone, priority }) => ({ id, name, relationship, phone, priority })),
+    deliveryStatus: 'share_required', createdAt: new Date().toISOString(),
   };
   sosEvents.push(event);
-  res.status(201).json({ message: 'SOS alert sent (simulated)', event });
+  res.status(201).json({
+    message: 'SOS prepared. Use the share sheet, SMS, or call buttons to contact your saved people.',
+    event,
+    important: 'A web browser cannot silently send SMS messages. The user must confirm sharing or calling on the device.',
+  });
 });
 
 // Simulated AI assistant — will be connected to a real AI API later.
