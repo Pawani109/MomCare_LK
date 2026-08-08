@@ -38,18 +38,21 @@ const Shopping = () => {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [serviceNotice, setServiceNotice] = useState('');
   const [search, setSearch] = useState('');
 
   const loadPlaces = async (coords, nextCategory = category, nextRadius = radius) => {
     if (!coords) return;
     setLoading(true);
     setError('');
+    setServiceNotice('');
     try {
       const data = await api.getNearbyPlaces({ ...coords, category: nextCategory, radius: nextRadius });
       const nextPlaces = data.places || [];
       setPlaces(nextPlaces);
       setSelected(nextPlaces[0] || null);
-      if (!nextPlaces.length) setError(f.noResults);
+      if (data.fallback || data.message) setServiceNotice(data.message || 'Using the backup OpenStreetMap search service.');
+      if (!nextPlaces.length && !data.message) setError(f.noResults);
     } catch (err) {
       setPlaces([]);
       setSelected(null);
@@ -157,6 +160,7 @@ const Shopping = () => {
 
         {location && <p className="mb-3 text-xs text-green-700">{f.centre}: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}{location.accuracy ? ` (about ${Math.round(location.accuracy)} m accuracy)` : ''}</p>}
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {serviceNotice && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{serviceNotice}</div>}
 
         {location && (
           <div className="mb-4 flex flex-wrap gap-2">
