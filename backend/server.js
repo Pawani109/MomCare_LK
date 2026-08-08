@@ -631,14 +631,16 @@ app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), (req,
 
 
 // ---- Nearby hospital and baby-shop finder ----
-// Uses OpenStreetMap Overpass data. Multiple public endpoints are tried because
-// any single community endpoint may temporarily be unavailable or rate-limited.
+// Primary source: OpenStreetMap Overpass. Fallback source: OpenStreetMap Nominatim.
+// Public community services can occasionally be unavailable, so the API degrades
+// gracefully and never turns the whole page into a 503 error.
 const nearbyCache = new Map();
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.nchc.org.tw/api/interpreter',
 ];
+const NOMINATIM_ENDPOINT = 'https://nominatim.openstreetmap.org/search';
 
 function distanceKm(lat1, lon1, lat2, lon2) {
   const toRad = (value) => value * Math.PI / 180;
@@ -659,30 +661,104 @@ function displayAddress(tags = {}) {
     .filter(Boolean).join(', ');
 }
 
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (!response.ok) throw new Error(`Map service returned ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function queryOverpass(query) {
   let lastError;
+  // GET is often more reliable than POST on school/corporate networks and proxies.
   for (const endpoint of OVERPASS_ENDPOINTS) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000);
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
+      const url = `${endpoint}?data=${encodeURIComponent(query)}`;
+      return await fetchJsonWithTimeout(url, {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-          'User-Agent': 'MomCare-LK-Educational-Demo/1.1',
+          'Accept': 'application/json',
+          'User-Agent': 'MomCare-LK-Educational-Demo/1.2',
         },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`Map service returned ${response.status}`);
-      return await response.json();
+      }, 15000);
     } catch (error) {
       lastError = error;
-    } finally {
-      clearTimeout(timeout);
     }
   }
-  throw lastError || new Error('No map service was available');
+  throw lastError || new Error('No Overpass server was available');
+}
+
+function radiusToViewbox(lat, lng, radiusMeters) {
+  const latDelta = radiusMeters / 111320;
+  const lngScale = Math.max(0.2, Math.cos(lat * Math.PI / 180));
+  const lngDelta = radiusMeters / (111320 * lngScale);
+  // Nominatim expects left,top,right,bottom
+  return `${lng - lngDelta},${lat + latDelta},${lng + lngDelta},${lat - latDelta}`;
+}
+
+async function queryNominatim(lat, lng, radius, category) {
+  const terms = category === 'hospital'
+    ? ['hospital', 'clinic', 'medical centre']
+    : category === 'shop'
+      ? ['baby shop', 'baby store', 'kids shop', 'children clothes']
+      : ['hospital', 'clinic', 'baby shop', 'kids shop'];
+  const viewbox = radiusToViewbox(lat, lng, radius);
+  const all = [];
+  for (const term of terms) {
+    try {
+      const params = new URLSearchParams({
+        q: term,
+        format: 'jsonv2',
+        limit: '12',
+        addressdetails: '1',
+        bounded: '1',
+        viewbox,
+      });
+      const rows = await fetchJsonWithTimeout(`${NOMINATIM_ENDPOINT}?${params}`, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'MomCare-LK-Educational-Demo/1.2',
+        },
+      }, 10000);
+      for (const row of rows || []) all.push({ ...row, _searchTerm: term });
+    } catch (error) {
+      // Try the next term. If all terms fail, the caller will receive an empty set.
+    }
+  }
+  return all;
+}
+
+function normaliseNominatim(rows, lat, lng, category) {
+  const unique = new Map();
+  for (const row of rows || []) {
+    const itemLat = Number(row.lat);
+    const itemLng = Number(row.lon);
+    if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) continue;
+    const typeText = `${row.type || ''} ${row.category || ''} ${row._searchTerm || ''}`.toLowerCase();
+    const type = /hospital|clinic|medical|doctor|health/.test(typeText) ? 'hospital' : 'shop';
+    if (category !== 'all' && type !== category) continue;
+    const name = row.name || String(row.display_name || '').split(',')[0] || (type === 'hospital' ? 'Healthcare facility' : 'Baby shop');
+    const key = `${type}:${name.toLowerCase()}:${itemLat.toFixed(4)}:${itemLng.toFixed(4)}`;
+    if (unique.has(key)) continue;
+    unique.set(key, {
+      id: `nominatim-${row.place_id}`,
+      name,
+      type,
+      subtype: row.type || row.category || '',
+      lat: itemLat,
+      lng: itemLng,
+      distanceKm: Number(distanceKm(lat, lng, itemLat, itemLng).toFixed(2)),
+      address: row.display_name || '',
+      phone: '',
+      website: '',
+      openingHours: '',
+    });
+  }
+  return [...unique.values()];
 }
 
 app.get('/api/places/nearby', requireAuth, async (req, res) => {
@@ -712,7 +788,11 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
     node["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});
     way["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});`;
   const selectors = category === 'hospital' ? hospitalSelectors : category === 'shop' ? shopSelectors : `${hospitalSelectors}\n${shopSelectors}`;
-  const query = `[out:json][timeout:25];(${selectors});out center tags;`;
+  const query = `[out:json][timeout:20];(${selectors});out center tags;`;
+
+  let places = [];
+  let source = 'OpenStreetMap Overpass';
+  let fallback = false;
 
   try {
     const data = await queryOverpass(query);
@@ -741,17 +821,32 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
         openingHours: tags.opening_hours || '',
       });
     }
-    const places = [...unique.values()].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 40);
-    const payload = { center: { lat, lng }, radius, category, places, source: 'OpenStreetMap contributors', fetchedAt: new Date().toISOString() };
-    nearbyCache.set(cacheKey, { createdAt: Date.now(), payload });
-    return res.json(payload);
+    places = [...unique.values()];
   } catch (error) {
-    console.error('Nearby finder error:', error.message);
-    return res.status(503).json({
-      error: 'The live place service is temporarily unavailable. Use the Google Maps fallback buttons shown on the page, or try again shortly.',
-      fallback: true,
-    });
+    console.warn('Overpass unavailable, trying Nominatim fallback:', error.message);
+    fallback = true;
+    source = 'OpenStreetMap Nominatim fallback';
+    const rows = await queryNominatim(lat, lng, radius, category);
+    places = normaliseNominatim(rows, lat, lng, category);
   }
+
+  places = places
+    .filter((place) => place.distanceKm <= radius / 1000 * 1.25)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, 40);
+
+  const payload = {
+    center: { lat, lng },
+    radius,
+    category,
+    places,
+    source,
+    fallback,
+    message: places.length ? '' : 'Live map data is unavailable or no matching places were found. Use the Google Maps fallback buttons for a live search.',
+    fetchedAt: new Date().toISOString(),
+  };
+  nearbyCache.set(cacheKey, { createdAt: Date.now(), payload });
+  return res.json(payload);
 });
 
 // Simulated AI assistant — will be connected to a real AI API later.
