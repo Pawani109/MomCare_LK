@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -5,10 +6,29 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { sendSMS } = require('textlk-node');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+function toTextLkFormat(phone) {
+  // Text.lk expects e.g. 94771234567 — no plus sign, no leading 0
+  const digits = String(phone || '').replace(/[^\d]/g, '');
+  if (digits.startsWith('94')) return digits;
+  if (digits.startsWith('0')) return `94${digits.slice(1)}`;
+  return digits;
+}
+
+async function sendSmsToContact(phone, message) {
+  try {
+    const result = await sendSMS({ phoneNumber: toTextLkFormat(phone), message });
+    return { ok: true, result };
+  } catch (err) {
+    console.error(`SMS to ${phone} failed:`, err.message);
+    return { ok: false, reason: err.message };
+  }
+}
 
 const uploadsDir = path.join(__dirname, 'uploads', 'scan-reports');
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -227,12 +247,12 @@ function pregnancySummary(lmpDate) {
 const weekContent = [
   { from: 1, to: 4, size: 'Poppy seed', baby: 'The fertilised egg is implanting and the earliest structures are beginning to form.', mother: 'You may notice tiredness, breast tenderness, or no symptoms at all.', checkup: 'Confirm the pregnancy and ask a healthcare professional about prenatal vitamins.' },
   { from: 5, to: 8, size: 'Raspberry', baby: 'The brain, spinal cord, and early heart structures are developing quickly.', mother: 'Nausea, food aversions, and fatigue are common during these weeks.', checkup: 'Arrange your first antenatal appointment and discuss any medicines you take.' },
-  { from: 9, to: 12, size: 'Lime', baby: 'Major organs are formed and continue to mature while tiny limbs become more defined.', mother: 'Morning sickness may continue, and your waist may start to feel different.', checkup: 'Your clinic may offer routine blood tests and dating guidance.' },
+  { from: 9, to: 12, size: 'Lime', baby: 'Major organs are formed and continue to mature while tiny limbs become more defined.',mother: 'Morning sickness may continue, and your waist may start to feel different.', checkup: 'Your clinic may offer routine blood tests and dating guidance.' },
   { from: 13, to: 16, size: 'Avocado', baby: 'Bones are hardening, facial features are clearer, and movement is increasing.', mother: 'Energy often improves, although headaches or stretching sensations can occur.', checkup: 'Continue regular antenatal visits and discuss screening options with your clinician.' },
-  { from: 17, to: 20, size: 'Bell pepper', baby: 'Hearing is developing and you may begin to feel gentle movements.', mother: 'Your bump is more noticeable and back discomfort may begin.', checkup: 'An anatomy or anomaly scan is commonly planned around this stage.' },
-  { from: 21, to: 24, size: 'Corn cob', baby: 'The baby is gaining weight and practising breathing movements.', mother: 'You may experience leg cramps, heartburn, or stronger movements.', checkup: 'Keep scheduled clinic visits and ask about healthy weight gain.' },
+  { from: 17, to: 20, size: 'Bell pepper', baby: 'Hearing is developing and you may begin to feel gentle movements.', mother: 'Your bump is more noticeable and back discomfort may begin.', checkup: 'An anatomy or anomaly scan is commonly planned around thisstage.' },
+  { from: 21, to: 24, size: 'Corn cob', baby: 'The baby is gaining weight and practising breathing movements.', mother: 'You mayexperience leg cramps, heartburn, or stronger movements.', checkup: 'Keep scheduled clinic visits and ask about healthy weight gain.' },
   { from: 25, to: 28, size: 'Cauliflower', baby: 'The lungs and nervous system are maturing, and the baby responds to sound.', mother: 'Sleep may become harder and swelling can appear in the feet.', checkup: 'Your care team may discuss blood pressure, anaemia, and glucose screening.' },
-  { from: 29, to: 32, size: 'Coconut', baby: 'Rapid brain growth continues while body fat increases.', mother: 'Breathlessness, pelvic pressure, and frequent urination may increase.', checkup: 'Discuss baby movements and your birth plan at upcoming visits.' },
+  { from: 29, to: 32, size: 'Coconut', baby: 'Rapid brain growth continues while body fat increases.', mother: 'Breathlessness, pelvic pressure, and frequent urination may increase.', checkup: 'Discuss baby movements and your birth plan at upcoming visits.'},
   { from: 33, to: 36, size: 'Pineapple', baby: 'The baby continues gaining weight and may settle into a head-down position.', mother: 'Braxton Hicks contractions and tiredness may become more noticeable.', checkup: 'Appointments may become more frequent; review signs of labour with your clinician.' },
   { from: 37, to: 40, size: 'Watermelon', baby: 'The baby is considered term and continues preparing for birth.', mother: 'Pelvic pressure and irregular contractions are common as labour approaches.', checkup: 'Follow your clinic schedule and seek urgent care for reduced movements, bleeding, severe pain, or fluid leakage.' },
 ];
@@ -247,7 +267,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'MomCare 
 
 app.get('/api/access', requireAuth, (req, res) => {
   const members = users.filter((u) => u.familyId === req.user.familyId).map(publicUser);
-  res.json({ role: req.user.role, permissions: permissionsByRole[req.user.role], members, familyCode: familyMom(req)?.familyCode });
+  res.json({ role: req.user.role, permissions: permissionsByRole[req.user.role], members, familyCode: familyMom(req)?.familyCode});
 });
 
 app.get('/api/profile', requireAuth, (req, res) => {
@@ -255,7 +275,7 @@ app.get('/api/profile', requireAuth, (req, res) => {
   const profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
   if (!mom || !profile) return res.status(404).json({ error: 'Mother profile not found for this family' });
   const summary = pregnancySummary(profile.lmpDate);
-  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, emergencyContacts: emergencyContacts.filter((c) => c.familyId === req.user.familyId && c.active).sort((a, b) => a.priority - b.priority), ...summary });
+  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, emergencyContacts:emergencyContacts.filter((c) => c.familyId === req.user.familyId && c.active).sort((a, b) => a.priority - b.priority), ...summary });
 });
 
 app.get('/api/pregnancy', requireAuth, (req, res) => {
@@ -340,7 +360,7 @@ function validateHealthRecord(body, file, partial = false) {
   const type = body.type;
   if (!partial && !['weight', 'blood_pressure', 'scan_report'].includes(type)) return 'Invalid health record type';
   if (!partial && !body.date) return 'Date is required';
-  if (type === 'weight' && (!Number.isFinite(Number(body.value)) || Number(body.value) < 25 || Number(body.value) > 250)) return 'Weight must be between 25 and 250 kg';
+  if (type === 'weight' && (!Number.isFinite(Number(body.value)) || Number(body.value) < 25 || Number(body.value) > 250)) return'Weight must be between 25 and 250 kg';
   if (type === 'blood_pressure') {
     const sys = Number(body.systolic), dia = Number(body.diastolic);
     if (!Number.isFinite(sys) || !Number.isFinite(dia) || sys < 60 || sys > 250 || dia < 35 || dia > 150 || sys <= dia) return 'Enter a valid blood pressure reading';
@@ -549,7 +569,7 @@ app.post('/api/emergency/contacts', requireAuth, requireRole('mom'), (req, res) 
   const contact = {
     id: nextId++, familyId: req.user.familyId, createdBy: req.user.id,
     name: String(req.body.name).trim(), relationship: String(req.body.relationship || '').trim(), phone,
-    priority: Number.isInteger(Number(req.body.priority)) ? Math.max(1, Math.min(5, Number(req.body.priority))) : current.length + 1,
+    priority: Number.isInteger(Number(req.body.priority)) ? Math.max(1, Math.min(5, Number(req.body.priority))) : current.length+ 1,
     active: true, createdAt: new Date().toISOString(),
   };
   emergencyContacts.push(contact);
@@ -590,7 +610,7 @@ app.get('/api/emergency/sos', requireAuth, (req, res) => {
   res.json(events);
 });
 
-app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), (req, res) => {
+app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), async (req, res) => {
   const contacts = emergencyContacts
     .filter((item) => item.familyId === req.user.familyId && item.active)
     .sort((a, b) => a.priority - b.priority);
@@ -621,10 +641,18 @@ app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), (req,
     deliveryStatus: 'share_required', createdAt: new Date().toISOString(),
   };
   sosEvents.push(event);
+
+  const smsResults = await Promise.all(
+    contacts.map((contact) => sendSmsToContact(contact.phone, message)),
+  );
+  const sentCount = smsResults.filter((r) => r.ok).length;
+  event.deliveryStatus = sentCount > 0 ? 'sms_sent' : 'sms_failed';
+
   res.status(201).json({
-    message: 'SOS prepared. Use the share sheet, SMS, or call buttons to contact your saved people.',
+    message: sentCount > 0
+      ? `SOS sent automatically to ${sentCount} of ${contacts.length} contact(s).`
+      : 'SOS saved, but automatic SMS could not be sent. Use the share sheet, SMS, or call buttons below.',
     event,
-    important: 'A web browser cannot silently send SMS messages. The user must confirm sharing or calling on the device.',
   });
 });
 
@@ -867,7 +895,7 @@ app.post('/api/assistant', (req, res) => {
 });
 
 app.use((err, _req, res, _next) => {
-  if (err instanceof multer.MulterError) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Scan report must be 8 MB or smaller' : err.message });
+  if (err instanceof multer.MulterError) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Scan report mustbe 8 MB or smaller' : err.message });
   if (err) return res.status(400).json({ error: err.message || 'Request could not be processed' });
   return res.status(500).json({ error: 'Unexpected server error' });
 });
