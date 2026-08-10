@@ -49,14 +49,34 @@ const PregnancyTracker = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
-      <Card className="bg-gradient-to-r from-pink-500 to-purple-500 !border-0 text-white">
-        <p className="text-sm opacity-90">{ptxt.journey}</p>
-        <div className="flex flex-wrap items-end justify-between gap-3 mt-2">
-          <div><span className="text-4xl font-extrabold">Week {tracker.currentWeek}</span><span className="ml-2 opacity-80">+ {tracker.currentDay} days</span></div>
-          <div className="text-right"><p className="text-xs opacity-80">{ptxt.estimatedDue}</p><p className="font-semibold">{tracker.dueDate}</p></div>
+      <Card className="relative overflow-hidden !border-0 bg-gradient-to-br from-pink-500 via-pink-600 to-pink-700 text-white shadow-lg shadow-pink-200/60 !py-4">
+        {/* decorative soft blobs, all pink tones */}
+        <div className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full bg-pink-300/30 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-12 -left-10 h-32 w-32 rounded-full bg-pink-400/20 blur-2xl" />
+
+        <div className="relative">
+          <p className="text-xs font-medium text-pink-50/90">{ptxt.journey}</p>
+
+          <div className="flex flex-wrap items-end justify-between gap-2 mt-0.5">
+            <div>
+              <span className="text-3xl font-extrabold tracking-tight">Week {tracker.currentWeek}</span>
+              <span className="ml-2 text-pink-50/80 text-sm">+ {tracker.currentDay} days</span>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-pink-50/80">{ptxt.estimatedDue}</p>
+              <p className="font-semibold text-sm">{tracker.dueDate}</p>
+            </div>
+          </div>
+
+          <div className="mt-2 h-2 bg-pink-900/25 rounded-full overflow-hidden ring-1 ring-white/10">
+            <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: `${tracker.progress}%` }} />
+          </div>
+
+          <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+            <span>🌸</span>
+            <span>{tracker.progress}% of the 40-week journey</span>
+          </div>
         </div>
-        <div className="mt-4 h-3 bg-white/30 rounded-full overflow-hidden"><div className="h-full bg-white rounded-full" style={{ width: `${tracker.progress}%` }} /></div>
-        <p className="mt-2 text-sm">{tracker.progress}% of the 40-week journey</p>
       </Card>
 
       <RoleNotice role={user.role}>{ptxt.ownerNotice}</RoleNotice>
