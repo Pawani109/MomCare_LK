@@ -66,7 +66,36 @@ const Appointments = () => {
       {message && <p className="mt-3 text-sm text-purple-600">{message}</p>}
     </Card>}
 
-    {upcoming[0] && <Card className="bg-gradient-to-r from-purple-500 to-pink-500 !border-0 text-white"><p className="text-sm opacity-80">{at.next}</p><div className="flex flex-wrap justify-between gap-3 mt-2"><div><p className="text-2xl font-bold">{upcoming[0].type}</p><p>{upcoming[0].hospital}</p></div><div className="text-right"><p className="font-semibold">{formatDate(upcoming[0].date)}</p><p>{upcoming[0].time}</p></div></div>{upcoming[0].reminderEnabled && <p className="mt-3 text-sm bg-white/20 rounded-xl p-2">🔔 {at.reminderEnabled}</p>}</Card>}
+    {upcoming[0] && (
+      <Card className="relative overflow-hidden !border-0 bg-gradient-to-br from-pink-500 via-pink-600 to-pink-700 text-white shadow-lg shadow-pink-200/60 !py-4">
+        {/* decorative soft blobs, all pink tones */}
+        <div className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full bg-pink-300/30 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-12 -left-10 h-32 w-32 rounded-full bg-pink-400/20 blur-2xl" />
+
+        <div className="relative">
+          <p className="text-xs font-medium text-pink-50/90">{at.next}</p>
+
+          <div className="flex flex-wrap items-end justify-between gap-2 mt-0.5">
+            <div>
+              <p className="text-3xl font-extrabold tracking-tight">{upcoming[0].type}</p>
+              <p className="text-pink-50/80 text-sm mt-0.5">{upcoming[0].hospital}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-pink-50/80">Date</p>
+              <p className="font-semibold text-sm">{formatDate(upcoming[0].date)}</p>
+              <p className="text-xs text-pink-50/80 mt-0.5">{upcoming[0].time}</p>
+            </div>
+          </div>
+
+          {upcoming[0].reminderEnabled && (
+            <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <span>🔔</span>
+              <span>{at.reminderEnabled}</span>
+            </div>
+          )}
+        </div>
+      </Card>
+    )}
 
     <Card><SectionTitle>📋 {at.myAppointments}</SectionTitle>{appointments.length === 0 ? <p className="text-sm text-gray-500">{at.empty}</p> : <div className="space-y-3">{appointments.map((item) => <div key={item.id} className={`rounded-xl border p-4 ${item.completed ? 'bg-gray-50 opacity-70' : 'border-pink-100'}`}><div className="flex flex-wrap justify-between gap-3"><div><div className="flex items-center gap-2"><p className="font-semibold text-gray-800">{item.type}</p>{item.reminderEnabled && <span title="Reminder enabled">🔔</span>}</div><p className="text-sm text-gray-600">{item.hospital}{item.doctor ? ` · ${item.doctor}` : ''}</p><p className="text-sm text-gray-500 mt-1">{formatDate(item.date)} at {item.time}</p>{item.notes && <p className="text-sm text-gray-500 mt-2">{item.notes}</p>}</div>{user.role === 'mom' && <div className="flex items-start gap-2"><button onClick={() => updateStatus(item)} className="small-btn">{item.completed ? 'Reopen' : 'Done'}</button><button onClick={() => edit(item)} className="small-btn">Edit</button><button onClick={() => remove(item.id)} className="small-btn text-red-500">Delete</button></div>}</div></div>)}</div>}</Card>
   </div>;
