@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { toast } from 'react-toastify';
 
 const Register = () => {
   const { t } = useLanguage();
@@ -17,9 +18,11 @@ const Register = () => {
     setLoading(true);
     try {
       await register(form);
+      toast.success('Account created successfully.');
       navigate('/');
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Something went wrong.');
     } finally {
       setLoading(false);
     }

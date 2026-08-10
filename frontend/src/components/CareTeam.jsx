@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { Card, SectionTitle } from './Card';
 import { useLanguage } from '../context/LanguageContext';
+import { toast } from 'react-toastify';
 
 const categoryLabel = { general: 'General care', appointment: 'Appointment', health: 'Health record', pregnancy: 'Pregnancy tracker' };
 
@@ -29,9 +30,10 @@ export default function CareTeam() {
     try {
       await api.addCareComment(form);
       setForm({ category: 'general', text: '' });
-      setMessage(ct.commentAdded);
+      setMessage('');
       await load();
-    } catch (error) { setMessage(error.message); }
+      toast.success(ct.commentAdded || 'Care comment added successfully.');
+    } catch (error) { setMessage(error.message); toast.error(error.message || 'Could not add care comment.'); }
   };
 
   return (

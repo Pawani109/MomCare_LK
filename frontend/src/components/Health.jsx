@@ -4,6 +4,7 @@ import { Card, SectionTitle } from './Card';
 import { useAuth } from '../context/AuthContext';
 import RoleNotice from './RoleNotice';
 import { useLanguage } from '../context/LanguageContext';
+import { toast } from 'react-toastify';
 
 const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm w-full bg-white';
 const empty = { type: 'weight', date: '', value: '', systolic: '', diastolic: '', pulse: '', title: '', scanType: 'Ultrasound', notes: '', file: null };
@@ -37,10 +38,11 @@ const Health = () => {
     e.preventDefault(); setError(''); setBusy(true);
     try {
       const payload = toFormData(form);
-      if (editing) await api.updateRecord(editing.id, payload);
-      else await api.addRecord(payload);
+      const wasEditing = Boolean(editing);
+      await (editing ? api.updateRecord(editing.id, payload) : api.addRecord(payload));
       setForm(empty); setEditing(null); await load();
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
+      toast.success(wasEditing ? 'Health record updated successfully.' : 'Health record added successfully.');
+    } catch (e) { setError(e.message); toast.error(e.message || 'Could not save health record.'); } finally { setBusy(false); }
   };
 
   const edit = (r) => {
@@ -51,12 +53,12 @@ const Health = () => {
 
   const remove = async (r) => {
     if (!window.confirm(ht.deleteConfirm)) return;
-    try { await api.deleteRecord(r.id); await load(); } catch (e) { setError(e.message); }
+    try { await api.deleteRecord(r.id); await load(); toast.success('Health record deleted successfully.'); } catch (e) { setError(e.message); toast.error(e.message || 'Could not delete health record.'); }
   };
 
   const addComment = async (recordId) => {
     const text = (comments[recordId] || '').trim(); if (!text) return;
-    try { await api.addRecordComment(recordId, text); setComments((x) => ({ ...x, [recordId]: '' })); await load(); } catch (e) { setError(e.message); }
+    try { await api.addRecordComment(recordId, text); setComments((x) => ({ ...x, [recordId]: '' })); await load(); toast.success('Comment added successfully.'); } catch (e) { setError(e.message); toast.error(e.message || 'Could not add comment.'); }
   };
 
   const openFile = async (record) => {

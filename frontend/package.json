@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "set PORT=3004 && vite",
     "build": "vite build",
-    "postinstall": "chmod +x node_modules/.bin/vite",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

@@ -4,6 +4,7 @@ import { Card, SectionTitle } from './Card';
 import { useAuth } from '../context/AuthContext';
 import RoleNotice from './RoleNotice';
 import { useLanguage } from '../context/LanguageContext';
+import { toast } from 'react-toastify';
 
 const emptyForm = { hospital: '', doctor: '', date: '', time: '', type: 'Routine antenatal clinic', notes: '', reminderEnabled: true };
 const formatDate = (value) => new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -25,14 +26,27 @@ const Appointments = () => {
   const submit = async (event) => {
     event.preventDefault(); setMessage('');
     try {
+      const wasEditing = Boolean(editingId);
       if (editingId) await api.updateAppointment(editingId, form); else await api.addAppointment(form);
-      setForm(emptyForm); setEditingId(null); setMessage(editingId ? at.updated : at.added); load();
-    } catch (error) { setMessage(error.message); }
+      setForm(emptyForm); setEditingId(null); setMessage('');
+      toast.success(wasEditing ? 'Appointment updated successfully.' : 'Appointment added successfully.');
+      load();
+    } catch (error) { setMessage(error.message); toast.error(error.message || 'Could not save appointment.'); }
   };
 
   const edit = (item) => { setEditingId(item.id); setForm({ hospital: item.hospital, doctor: item.doctor, date: item.date, time: item.time, type: item.type, notes: item.notes, reminderEnabled: item.reminderEnabled }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const updateStatus = async (item) => { await api.updateAppointment(item.id, { completed: !item.completed }); load(); };
-  const remove = async (id) => { if (!window.confirm(at.deleteConfirm)) return; await api.deleteAppointment(id); load(); };
+  const updateStatus = async (item) => {
+    try {
+      await api.updateAppointment(item.id, { completed: !item.completed });
+      toast.success(item.completed ? 'Appointment reopened.' : 'Appointment marked as completed.');
+      load();
+    } catch (error) { toast.error(error.message || 'Could not update appointment.'); }
+  };
+  const remove = async (id) => {
+    if (!window.confirm(at.deleteConfirm)) return;
+    try { await api.deleteAppointment(id); toast.success('Appointment deleted successfully.'); load(); }
+    catch (error) { toast.error(error.message || 'Could not delete appointment.'); }
+  };
 
   return <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
     <RoleNotice role={user.role}>{at.readonly}</RoleNotice>

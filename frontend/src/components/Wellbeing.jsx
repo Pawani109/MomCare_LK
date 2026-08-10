@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Card, SectionTitle } from './Card';
+import { toast } from 'react-toastify';
 
 const copy = {
   en: {
@@ -40,26 +41,26 @@ export default function Wellbeing() {
   useEffect(() => { loadForum(); loadMood(); }, [isMom]);
 
   async function saveMood() {
-    try { setError(''); const saved = await api.logMood(mood, moodNote); setHistory((h) => [saved, ...h.filter((x) => x.id !== saved.id)]); setMoodNote(''); }
-    catch (e) { setError(e.message || c.error); }
+    try { setError(''); const saved = await api.logMood(mood, moodNote); setHistory((h) => [saved, ...h.filter((x) => x.id !== saved.id)]); setMoodNote(''); toast.success('Mood check-in saved successfully.'); }
+    catch (e) { setError(e.message || c.error); toast.error(e.message || c.error); }
   }
 
   async function submitPost(e) {
     e.preventDefault();
     if (!text.trim()) return;
-    try { const p = await api.addPost({ text, topic, anonymous }); setPosts((v) => [p, ...v]); setText(''); setAnonymous(false); }
-    catch (e) { setError(e.message || c.error); }
+    try { const p = await api.addPost({ text, topic, anonymous }); setPosts((v) => [p, ...v]); setText(''); setAnonymous(false); toast.success('Discussion posted successfully.'); }
+    catch (e) { setError(e.message || c.error); toast.error(e.message || c.error); }
   }
 
   async function addReply(postId) {
     const value = (replyText[postId] || '').trim(); if (!value) return;
-    try { const r = await api.addForumReply(postId, value); setPosts((ps) => ps.map((p) => p.id === postId ? { ...p, replies: [...p.replies, r], replyCount: p.replyCount + 1 } : p)); setReplyText((v) => ({ ...v, [postId]: '' })); }
-    catch (e) { setError(e.message || c.error); }
+    try { const r = await api.addForumReply(postId, value); setPosts((ps) => ps.map((p) => p.id === postId ? { ...p, replies: [...p.replies, r], replyCount: p.replyCount + 1 } : p)); setReplyText((v) => ({ ...v, [postId]: '' })); toast.success('Reply added successfully.'); }
+    catch (e) { setError(e.message || c.error); toast.error(e.message || c.error); }
   }
 
-  async function removePost(id) { if (!window.confirm(c.confirmDelete)) return; await api.deleteForumPost(id); setPosts((p) => p.filter((x) => x.id !== id)); }
-  async function removeReply(postId, replyId) { if (!window.confirm(c.confirmDelete)) return; await api.deleteForumReply(postId, replyId); setPosts((ps) => ps.map((p) => p.id === postId ? { ...p, replies: p.replies.filter((r) => r.id !== replyId), replyCount: p.replyCount - 1 } : p)); }
-  async function report(id) { try { await api.reportForumPost(id, 'inappropriate'); setPosts((ps) => ps.map((p) => p.id === id ? { ...p, hasReported: true } : p)); } catch (e) { setError(e.message || c.error); } }
+  async function removePost(id) { if (!window.confirm(c.confirmDelete)) return; try { await api.deleteForumPost(id); setPosts((p) => p.filter((x) => x.id !== id)); toast.success('Discussion deleted.'); } catch (e) { setError(e.message || c.error); toast.error(e.message || c.error); } }
+  async function removeReply(postId, replyId) { if (!window.confirm(c.confirmDelete)) return; try { await api.deleteForumReply(postId, replyId); setPosts((ps) => ps.map((p) => p.id === postId ? { ...p, replies: p.replies.filter((r) => r.id !== replyId), replyCount: p.replyCount - 1 } : p)); toast.success('Reply deleted.'); } catch (e) { setError(e.message || c.error); toast.error(e.message || c.error); } }
+  async function report(id) { try { await api.reportForumPost(id, 'inappropriate'); setPosts((ps) => ps.map((p) => p.id === id ? { ...p, hasReported: true } : p)); toast.info('Discussion reported for review.'); } catch (e) { setError(e.message || c.error); toast.error(e.message || c.error); } }
 
   return <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
     {error && <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">{error}</div>}

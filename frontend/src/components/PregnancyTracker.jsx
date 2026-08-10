@@ -4,6 +4,7 @@ import { Card, SectionTitle } from './Card';
 import { useAuth } from '../context/AuthContext';
 import RoleNotice from './RoleNotice';
 import { useLanguage } from '../context/LanguageContext';
+import { toast } from 'react-toastify';
 
 const PregnancyTracker = () => {
   const { t } = useLanguage();
@@ -32,9 +33,11 @@ const PregnancyTracker = () => {
       const data = await api.updatePregnancy({ lmpDate });
       setTracker(data);
       setSelectedWeek({ week: data.currentWeek, ...data.weekInfo });
-      setMessage(ptxt.updated);
+      setMessage('');
+      toast.success(ptxt.updated || 'Pregnancy dates updated successfully.');
     } catch (error) {
       setMessage(error.message);
+      toast.error(error.message || 'Could not update pregnancy details.');
     } finally {
       setSaving(false);
     }

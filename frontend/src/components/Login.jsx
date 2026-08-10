@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import loginImage from '../assets/image1.jpg';
+import { toast } from 'react-toastify';
 
 const Login = () => {
   const { t } = useLanguage();
@@ -19,9 +20,11 @@ const Login = () => {
     setLoading(true);
     try {
       await login(email, password);
+      toast.success('Logged in successfully.');
       navigate('/');
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Something went wrong.');
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { Card, SectionTitle } from './Card';
 import { useLanguage } from '../context/LanguageContext';
+import { toast } from 'react-toastify';
 
 const emptyContact = { name: '', relationship: '', phone: '', priority: 1 };
 
@@ -77,13 +78,16 @@ const Emergency = () => {
     setError('');
     setNotice('');
     try {
+      const wasEditing = Boolean(editingId);
       if (editingId) await api.updateEmergencyContact(editingId, form);
       else await api.addEmergencyContact(form);
       resetForm();
-      setNotice(editingId ? 'Emergency contact updated.' : 'Emergency contact saved.');
+      setNotice('');
       await load();
+      toast.success(wasEditing ? 'Emergency contact updated successfully.' : 'Emergency contact added successfully.');
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Could not save emergency contact.');
     }
   };
 
@@ -96,10 +100,12 @@ const Emergency = () => {
     if (!window.confirm('Remove this emergency contact?')) return;
     try {
       await api.deleteEmergencyContact(id);
-      setNotice('Emergency contact removed.');
+      setNotice('');
       await load();
+      toast.success('Emergency contact deleted successfully.');
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Could not delete emergency contact.');
     }
   };
 
@@ -125,6 +131,11 @@ const Emergency = () => {
       setLatest(result.event);
       setEvents((current) => [result.event, ...current]);
       setNotice('SOS prepared. Confirm the share action on your device.');
+      if (result?.event?.deliveryStatus === 'sms_sent' || result?.event?.deliveryStatus === 'partial_sms') {
+        toast.success(result.message || 'SOS alert created successfully.');
+      } else {
+        toast.warning(result.message || 'SOS alert created. Please use the call/share options.');
+      }
 
       if (navigator.share) {
         try {
@@ -138,6 +149,7 @@ const Emergency = () => {
       }
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Could not create SOS alert.');
     } finally {
       setSending(false);
     }
