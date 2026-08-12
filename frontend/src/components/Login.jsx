@@ -82,7 +82,7 @@ const Login = () => {
         </div>
       </div>
     </div>
-      );
+  );
 };
 
-      export default Login;
+export default Login;
