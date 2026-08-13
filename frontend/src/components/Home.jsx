@@ -117,7 +117,7 @@ const Home = () => {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-7">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-7">
       {/* Clear first-impression hero */}
       <section className="relative overflow-hidden rounded-[30px] border border-pink-100 bg-gradient-to-br from-pink-50 via-white to-pink-100 shadow-sm">
         <div className="grid min-h-[360px] lg:grid-cols-[1.25fr_.75fr]">
