@@ -17,6 +17,213 @@ function toFormData(form) {
   return data;
 }
 
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function groupTrendRecords(records, type, range) {
+  const source = records
+    .filter((record) => record.type === type && record.date)
+    .map((record) => ({ ...record, _date: new Date(`${record.date}T00:00:00`) }))
+    .filter((record) => !Number.isNaN(record._date.getTime()))
+    .sort((a, b) => a._date - b._date);
+
+  if (!source.length) return [];
+
+  const now = new Date();
+  now.setHours(23, 59, 59, 999);
+
+  let cutoff;
+  if (range === 'day') cutoff = new Date(now.getTime() - 13 * DAY_MS);
+  if (range === 'week') cutoff = new Date(now.getTime() - 11 * 7 * DAY_MS);
+  if (range === 'month') {
+    cutoff = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  }
+
+  const filtered = source.filter((record) => !cutoff || record._date >= cutoff);
+  const buckets = new Map();
+
+  filtered.forEach((record) => {
+    let key;
+    let label;
+
+    if (range === 'day') {
+      key = record.date;
+      label = record._date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else if (range === 'week') {
+      const start = startOfWeek(record._date);
+      key = start.toISOString().slice(0, 10);
+      label = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else {
+      key = `${record._date.getFullYear()}-${String(record._date.getMonth() + 1).padStart(2, '0')}`;
+      label = record._date.toLocaleDateString('en-US', { month: 'short' });
+    }
+
+    if (!buckets.has(key)) buckets.set(key, { key, label, records: [] });
+    buckets.get(key).records.push(record);
+  });
+
+  return [...buckets.values()].map((bucket) => {
+    const avg = (values) => values.length
+      ? values.reduce((sum, value) => sum + value, 0) / values.length
+      : null;
+
+    if (type === 'weight') {
+      const values = bucket.records.map((r) => Number(r.value)).filter(Number.isFinite);
+      return { ...bucket, weight: avg(values) };
+    }
+
+    const systolic = bucket.records.map((r) => Number(r.systolic)).filter(Number.isFinite);
+    const diastolic = bucket.records.map((r) => Number(r.diastolic)).filter(Number.isFinite);
+    return { ...bucket, systolic: avg(systolic), diastolic: avg(diastolic) };
+  });
+}
+
+function TrendChart({ title, subtitle, records, type }) {
+  const [range, setRange] = useState('week');
+  const points = useMemo(() => groupTrendRecords(records, type, range), [records, type, range]);
+  const series = type === 'weight'
+    ? [{ key: 'weight', label: 'Weight', stroke: '#ec4899', unit: 'kg' }]
+    : [
+        { key: 'systolic', label: 'Systolic', stroke: '#ec4899', unit: 'mmHg' },
+        { key: 'diastolic', label: 'Diastolic', stroke: '#8b5cf6', unit: 'mmHg' },
+      ];
+
+  const allValues = points.flatMap((point) =>
+    series.map((item) => point[item.key]).filter((value) => Number.isFinite(value))
+  );
+
+  const width = 720;
+  const height = 260;
+  const pad = { left: 48, right: 22, top: 24, bottom: 48 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const rawMin = allValues.length ? Math.min(...allValues) : 0;
+  const rawMax = allValues.length ? Math.max(...allValues) : 100;
+  const spread = Math.max(rawMax - rawMin, type === 'weight' ? 4 : 20);
+  const minY = Math.max(0, Math.floor(rawMin - spread * 0.2));
+  const maxY = Math.ceil(rawMax + spread * 0.2);
+  const y = (value) => pad.top + (maxY - value) / Math.max(1, maxY - minY) * plotH;
+  const x = (index) => points.length <= 1
+    ? pad.left + plotW / 2
+    : pad.left + (index / (points.length - 1)) * plotW;
+
+  const gridValues = Array.from({ length: 5 }, (_, i) => minY + ((maxY - minY) * i / 4));
+
+  const pathFor = (key) => {
+    const valid = points
+      .map((point, index) => ({ value: point[key], index }))
+      .filter(({ value }) => Number.isFinite(value));
+    return valid.map(({ value, index }, i) => `${i === 0 ? 'M' : 'L'} ${x(index)} ${y(value)}`).join(' ');
+  };
+
+  const rangeLabel = range === 'day' ? 'Daily' : range === 'week' ? 'Weekly' : 'Monthly';
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-800">{title}</h3>
+          <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+        </div>
+        <div className="inline-flex rounded-xl bg-gray-100 p-1">
+          {[
+            ['day', 'Day'],
+            ['week', 'Week'],
+            ['month', 'Month'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setRange(value)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                range === value
+                  ? 'bg-pink-500 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-pink-600'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 mb-2">
+        {series.map((item) => (
+          <span key={item.key} className="inline-flex items-center gap-2 text-xs text-gray-500">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.stroke }} />
+            {item.label}
+          </span>
+        ))}
+        <span className="ml-auto text-xs font-medium text-pink-500">{rangeLabel} view</span>
+      </div>
+
+      {points.length === 0 || allValues.length === 0 ? (
+        <div className="h-56 flex flex-col items-center justify-center rounded-2xl bg-pink-50/50 border border-dashed border-pink-200 text-center px-4">
+          <div className="text-3xl mb-2">{type === 'weight' ? '⚖️' : '💗'}</div>
+          <p className="text-sm font-medium text-gray-600">No {type === 'weight' ? 'weight' : 'blood pressure'} data for this period.</p>
+          <p className="text-xs text-gray-400 mt-1">Add a health record and the graph will update automatically.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[580px] h-auto" role="img" aria-label={`${title} ${rangeLabel.toLowerCase()} trend`}>
+            {gridValues.map((value) => {
+              const yy = y(value);
+              return (
+                <g key={value}>
+                  <line x1={pad.left} x2={width - pad.right} y1={yy} y2={yy} stroke="#f3f4f6" strokeWidth="1" />
+                  <text x={pad.left - 10} y={yy + 4} textAnchor="end" fontSize="10" fill="#9ca3af">
+                    {Math.round(value)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {series.map((item) => (
+              <g key={item.key}>
+                <path d={pathFor(item.key)} fill="none" stroke={item.stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                {points.map((point, index) => Number.isFinite(point[item.key]) && (
+                  <g key={`${item.key}-${point.key}`}>
+                    <circle cx={x(index)} cy={y(point[item.key])} r="4.5" fill="white" stroke={item.stroke} strokeWidth="2.5" />
+                    <title>{`${point.label}: ${point[item.key].toFixed(type === 'weight' ? 1 : 0)} ${item.unit}`}</title>
+                  </g>
+                ))}
+              </g>
+            ))}
+
+            {points.map((point, index) => (
+              <text
+                key={`label-${point.key}`}
+                x={x(index)}
+                y={height - 18}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#6b7280"
+              >
+                {point.label}
+              </text>
+            ))}
+          </svg>
+        </div>
+      )}
+
+      {points.length > 0 && (
+        <div className="mt-2 rounded-xl bg-pink-50 px-3 py-2 text-xs text-gray-500">
+          Showing {points.length} {range === 'day' ? 'day' : range === 'week' ? 'week' : 'month'}{points.length === 1 ? '' : 's'} with recorded data. Weekly and monthly values are averages when multiple readings exist.
+        </div>
+      )}
+    </Card>
+  );
+}
+
 const Health = () => {
   const { t } = useLanguage();
   const ht = t.health;
@@ -75,7 +282,7 @@ const Health = () => {
         <p className="text-sm text-gray-500 mt-1">{ht.desc}</p>
       </div>
 
-      <RoleNotice role={user.role}>{ht.readonly}</RoleNotice>
+      {/* <RoleNotice role={user.role}>{ht.readonly}</RoleNotice> */}
       {error && <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">{error}</div>}
 
       {user.role === 'mom' && <Card>
@@ -93,6 +300,21 @@ const Health = () => {
           <div className="flex gap-2"><button disabled={busy} className="bg-purple-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Saving...' : editing ? 'Save changes' : 'Add record'}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(empty); }} className="border rounded-lg px-4 py-2 text-sm">Cancel</button>}</div>
         </form>
       </Card>}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <TrendChart
+          title="Weight trend"
+          subtitle="Track maternal weight changes over time"
+          records={records}
+          type="weight"
+        />
+        <TrendChart
+          title="Blood pressure trend"
+          subtitle="Compare systolic and diastolic readings"
+          records={records}
+          type="blood_pressure"
+        />
+      </div>
 
       <Card>
         <div className="flex flex-wrap justify-between gap-3 items-center mb-4"><SectionTitle>📋 Health record history</SectionTitle><select className="border rounded-lg px-3 py-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">All records</option><option value="weight">{ht.weight}</option><option value="blood_pressure">{ht.bloodPressure}</option><option value="scan_report">Scan reports</option></select></div>

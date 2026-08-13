@@ -13,6 +13,7 @@ import Register from "./components/Register";
 import PregnancyTracker from "./components/PregnancyTracker";
 import Appointments from "./components/Appointments";
 import CareTeam from "./components/CareTeam";
+import FloatingAssistantBot from "./components/FloatingAssistantBot";
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -41,6 +42,8 @@ function AppRoutes() {
           <Route path="/shopping" element={<RequireAuth><Shopping /></RequireAuth>} />
           <Route path="/wellbeing" element={<RequireAuth><Wellbeing /></RequireAuth>} />
         </Routes>
+
+        <FloatingAssistantBot />
 
         <footer className="text-center text-xs text-gray-400 py-6">
           {t.footer}

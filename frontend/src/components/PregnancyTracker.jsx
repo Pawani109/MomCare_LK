@@ -103,63 +103,47 @@ const PregnancyTracker = () => {
       {/* TOP CURRENT PREGNANCY STATUS */}
       {/* ================================================= */}
 
-      <Card className="relative overflow-hidden !border-0 bg-gradient-to-br from-pink-500 via-pink-600 to-purple-600 text-white shadow-xl shadow-pink-200/50 !py-5">
-
-        <div className="pointer-events-none absolute -top-16 -right-16 h-44 w-44 rounded-full bg-white/20 blur-3xl" />
-
-        <div className="pointer-events-none absolute -bottom-20 -left-16 h-44 w-44 rounded-full bg-purple-300/20 blur-3xl" />
+      <Card className="relative overflow-hidden !border-0 bg-gradient-to-br from-pink-500 via-pink-600 to-pink-700 text-white shadow-lg shadow-pink-200/60 !py-4">
+        {/* decorative soft blobs, all pink tones */}
+        <div className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full bg-pink-300/30 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-12 -left-10 h-32 w-32 rounded-full bg-pink-400/20 blur-2xl" />
 
         <div className="relative">
-
-          <p className="text-xs sm:text-sm font-medium text-pink-50/90">
+          <p className="text-xs font-medium text-pink-50/90">
             {ptxt.journey}
           </p>
 
-          <div className="flex flex-wrap items-end justify-between gap-3 mt-1">
-
+          <div className="flex flex-wrap items-end justify-between gap-2 mt-0.5">
             <div>
-              <span className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+              <span className="text-3xl font-extrabold tracking-tight">
                 Week {tracker.currentWeek}
               </span>
-
               <span className="ml-2 text-pink-50/80 text-sm">
                 + {tracker.currentDay} days
               </span>
             </div>
 
-            <div className="text-left sm:text-right">
+            <div className="text-right">
               <p className="text-xs text-pink-50/80">
                 {ptxt.estimatedDue}
               </p>
-
-              <p className="font-semibold">
+              <p className="font-semibold text-sm">
                 {tracker.dueDate}
               </p>
             </div>
-
           </div>
 
-          <div className="mt-4 h-2.5 bg-purple-900/30 rounded-full overflow-hidden">
-
+          <div className="mt-2 h-2 bg-pink-900/25 rounded-full overflow-hidden ring-1 ring-white/10">
             <div
-              className="h-full bg-white rounded-full transition-all duration-700"
-              style={{
-                width: `${tracker.progress}%`
-              }}
+              className="h-full bg-white rounded-full transition-all duration-500"
+              style={{ width: `${tracker.progress}%` }}
             />
-
           </div>
 
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium backdrop-blur-sm">
-
+          <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
             <span>🌸</span>
-
-            <span>
-              {tracker.progress}% of your 40-week journey
-            </span>
-
+            <span>{tracker.progress}% of your 40-week journey</span>
           </div>
-
         </div>
       </Card>
 
