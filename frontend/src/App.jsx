@@ -10,6 +10,7 @@ import Shopping from "./components/Shopping";
 import Wellbeing from "./components/Wellbeing";
 import Login from "./components/Login";
 import Register from "./components/Register";
+import ForgotPassword from "./components/ForgotPassword";
 import PregnancyTracker from "./components/PregnancyTracker";
 import Appointments from "./components/Appointments";
 import CareTeam from "./components/CareTeam";
@@ -33,6 +34,7 @@ function AppRoutes() {
         <Routes>
           <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
           <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
+          <Route path="/forgot-password" element={user ? <Navigate to="/" replace /> : <ForgotPassword />} />
           <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
           <Route path="/pregnancy" element={<RequireAuth><PregnancyTracker /></RequireAuth>} />
           <Route path="/appointments" element={<RequireAuth><Appointments /></RequireAuth>} />

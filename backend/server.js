@@ -174,6 +174,65 @@ app.post('/api/auth/register', (req, res) => {
   res.status(201).json({ token: makeToken(user), user: publicUser(user) });
 });
 
+
+// ---- Demo password reset flow ----
+// In production, send the OTP through an approved email/SMS provider instead of returning demoCode.
+const passwordResetRequests = new Map();
+
+app.post('/api/auth/forgot-password', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const user = users.find((u) => u.email.toLowerCase() === email);
+  if (!user) return res.status(404).json({ error: 'No MomCare account was found with that email address' });
+
+  const code = String(Math.floor(1000 + Math.random() * 9000));
+  passwordResetRequests.set(email, {
+    code,
+    userId: user.id,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    verified: false,
+    resetToken: null,
+  });
+  console.log(`Password reset OTP for ${email}: ${code}`);
+  res.json({ message: 'Verification code created', demoCode: code, expiresInMinutes: 10 });
+});
+
+app.post('/api/auth/verify-reset-code', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const code = String(req.body.code || '').trim();
+  const request = passwordResetRequests.get(email);
+  if (!request || request.expiresAt < Date.now()) {
+    passwordResetRequests.delete(email);
+    return res.status(400).json({ error: 'The verification code has expired. Request a new code.' });
+  }
+  if (request.code !== code) return res.status(400).json({ error: 'The verification code is incorrect' });
+
+  const resetToken = jwt.sign({ purpose: 'password-reset', userId: request.userId, email }, JWT_SECRET, { expiresIn: '10m' });
+  request.verified = true;
+  request.resetToken = resetToken;
+  res.json({ message: 'Code verified', resetToken });
+});
+
+app.post('/api/auth/reset-password', (req, res) => {
+  const resetToken = String(req.body.resetToken || '');
+  const password = String(req.body.password || '');
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+
+  try {
+    const payload = jwt.verify(resetToken, JWT_SECRET);
+    if (payload.purpose !== 'password-reset') return res.status(400).json({ error: 'Invalid password reset token' });
+    const request = passwordResetRequests.get(String(payload.email).toLowerCase());
+    if (!request || !request.verified || request.resetToken !== resetToken) return res.status(400).json({ error: 'Password reset session is no longer valid' });
+    const user = users.find((u) => u.id === payload.userId);
+    if (!user) return res.status(404).json({ error: 'Account not found' });
+
+    user.passwordHash = bcrypt.hashSync(password, 10);
+    passwordResetRequests.delete(String(payload.email).toLowerCase());
+    res.json({ message: 'Password updated successfully' });
+  } catch {
+    res.status(400).json({ error: 'Password reset session has expired. Please start again.' });
+  }
+});
+
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   const user = users.find((u) => u.email.toLowerCase() === (email || '').toLowerCase());
