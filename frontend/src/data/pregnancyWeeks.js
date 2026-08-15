@@ -129,7 +129,7 @@ export const pregnancyWeeks = [
     fruit: "Blueberry",
     emoji: "🫐",
     size: "1.6 cm",
-    weight: "2–2 g",
+    weight: "2–3 g",
     image: week07,
     baby:
       "The baby's arms and legs continue growing while hands and feet begin forming.",
@@ -171,7 +171,7 @@ export const pregnancyWeeks = [
     fruit: "Prune",
     emoji: "🟣",
     size: "3.1 cm",
-    weight: "10–14 g",
+    weight: "9–14 g",
     image: week10,
     baby:
       "Fingers and toes become better defined and the baby's major body structures are now established.",
@@ -200,7 +200,7 @@ export const pregnancyWeeks = [
     fruit: "Plum",
     emoji: "🟣",
     size: "5.4 cm",
-    weight: "20–28 g",
+    weight: "20–30 g",
     image: week12,
     baby:
       "The baby can open and close tiny hands while reflexes continue developing.",
@@ -214,7 +214,7 @@ export const pregnancyWeeks = [
     fruit: "Peach",
     emoji: "🍑",
     size: "7.4 cm",
-    weight: "28–40 g",
+    weight: "23–35 g",
     image: week13,
     baby:
       "The baby's vocal cords are developing and fingerprints begin forming.",
@@ -228,7 +228,7 @@ export const pregnancyWeeks = [
     fruit: "Lemon",
     emoji: "🍋",
     size: "8.7 cm",
-    weight: "40–60 g",
+    weight: "28–43 g",
     image: week14,
     baby:
       "Fine hair called lanugo may begin developing and facial muscles become more active.",
@@ -242,7 +242,7 @@ export const pregnancyWeeks = [
     fruit: "Apple",
     emoji: "🍎",
     size: "10.1 cm",
-    weight: "60–80 g",
+    weight: "50–70 g",
     image: week15,
     baby:
       "The baby's bones continue strengthening and movements become more coordinated.",
@@ -298,7 +298,7 @@ export const pregnancyWeeks = [
     fruit: "Mango",
     emoji: "🥭",
     size: "15.3 cm",
-    weight: "190–240 g",
+    weight: "190–260 g",
     image: week19,
     baby:
       "A protective coating called vernix begins covering the baby's skin.",
@@ -311,7 +311,7 @@ export const pregnancyWeeks = [
     week: 20,
     fruit: "Banana",
     emoji: "🍌",
-    size: "16.4 cm",
+    size: "16.1 cm",
     weight: "240–300 g",
     image: week20,
     baby:
@@ -327,7 +327,7 @@ export const pregnancyWeeks = [
     fruit: "Carrot",
     emoji: "🥕",
     size: "26.7 cm",
-    weight: "300–360 g",
+    weight: "360–430 g",
     image: week21,
     baby:
       "The baby's lungs continue developing and swallowing movements increase.",
@@ -341,7 +341,7 @@ export const pregnancyWeeks = [
     fruit: "Papaya",
     emoji: "🧡",
     size: "27.8 cm",
-    weight: "360–430 g",
+    weight: "430–500 g",
     image: week22,
     baby:
       "Eyebrows and eyelashes are becoming more defined.",
@@ -355,7 +355,7 @@ export const pregnancyWeeks = [
     fruit: "Grapefruit",
     emoji: "🍊",
     size: "28.9 cm",
-    weight: "430–500 g",
+    weight: "550–650 g",
     image: week23,
     baby:
       "The baby can hear sounds outside the womb and may respond to familiar voices.",
@@ -368,8 +368,8 @@ export const pregnancyWeeks = [
     week: 24,
     fruit: "Corn",
     emoji: "🌽",
-    size: "30.0 cm",
-    weight: "500–600 g",
+    size: "30.4 cm",
+    weight: "600–730 g",
     image: week24,
     baby:
       "The baby's lungs develop further and facial features become increasingly defined.",
@@ -383,7 +383,7 @@ export const pregnancyWeeks = [
     fruit: "Cauliflower",
     emoji: "🥦",
     size: "34.6 cm",
-    weight: "600–660 g",
+    weight: "660–820 g",
     image: week25,
     baby:
       "The brain grows rapidly and the baby may respond to familiar sounds.",
@@ -394,10 +394,10 @@ export const pregnancyWeeks = [
   },
   {
     week: 26,
-    fruit: "Cabbage",
-    emoji: "🥬",
+    fruit: "Zucchini",
+    emoji: "🥒",
     size: "35.6 cm",
-    weight: "660–760 g",
+    weight: "760–900 g",
     image: week26,
     baby:
       "The baby can blink and respond to light. The brain and nervous system continue developing and the lungs are maturing.",
@@ -411,7 +411,7 @@ export const pregnancyWeeks = [
     fruit: "Rutabaga",
     emoji: "🥔",
     size: "36.6 cm",
-    weight: "760–875 g",
+    weight: "875–1050 g",
     image: week27,
     baby:
       "The brain and nervous system continue maturing and the baby develops more regular sleep patterns.",
@@ -425,7 +425,7 @@ export const pregnancyWeeks = [
     fruit: "Eggplant",
     emoji: "🍆",
     size: "37.6 cm",
-    weight: "875–1000 g",
+    weight: "1000–1200 g",
     image: week28,
     baby:
       "The baby's eyes can open and close and breathing movements are being practised.",
@@ -439,7 +439,7 @@ export const pregnancyWeeks = [
     fruit: "Butternut Squash",
     emoji: "🎃",
     size: "38.6 cm",
-    weight: "1000–1150 g",
+    weight: "1150–1350 g",
     image: week29,
     baby:
       "The baby's muscles and lungs continue maturing while body fat increases.",
@@ -450,10 +450,10 @@ export const pregnancyWeeks = [
   },
   {
     week: 30,
-    fruit: "Coconut",
-    emoji: "🥥",
+    fruit: "Cabbage",
+    emoji: "🥬",
     size: "39.9 cm",
-    weight: "1150–1320 g",
+    weight: "1300–1500 g",
     image: week30,
     baby:
       "The baby's brain develops rapidly and the body continues gaining fat.",
@@ -465,10 +465,10 @@ export const pregnancyWeeks = [
 
   {
     week: 31,
-    fruit: "Pineapple",
-    emoji: "🍍",
+    fruit: "Coconut",
+    emoji: "🥥",
     size: "41.1 cm",
-    weight: "1320–1500 g",
+    weight: "1500–1700 g",
     image: week31,
     baby:
       "The baby's lungs and nervous system continue maturing.",
@@ -479,10 +479,10 @@ export const pregnancyWeeks = [
   },
   {
     week: 32,
-    fruit: "Jicama",
-    emoji: "🥔",
+    fruit: "Coconut",
+    emoji: "🥥",
     size: "42.4 cm",
-    weight: "1500–1700 g",
+    weight: "1700–1900 g",
     image: week32,
     baby:
       "The baby's immune system continues developing and fat stores increase.",
@@ -493,10 +493,10 @@ export const pregnancyWeeks = [
   },
   {
     week: 33,
-    fruit: "Durian",
-    emoji: "🟡",
+    fruit: "Pineapple",
+    emoji: "🍍",
     size: "43.7 cm",
-    weight: "1700–1920 g",
+    weight: "1900–2100 g",
     image: week33,
     baby:
       "The baby's skin becomes smoother as more fat accumulates under the skin.",
@@ -507,10 +507,10 @@ export const pregnancyWeeks = [
   },
   {
     week: 34,
-    fruit: "Honeydew Melon",
+    fruit: "Cantaloupe",
     emoji: "🍈",
-    size: "45.0 cm",
-    weight: "1920–2150 g",
+    size: "45.6 cm",
+    weight: "2100–2400 g",
     image: week34,
     baby:
       "The baby's head and bones continue developing while the lungs approach maturity.",
@@ -521,10 +521,10 @@ export const pregnancyWeeks = [
   },
   {
     week: 35,
-    fruit: "Cantaloupe",
+    fruit: "Honeydew Melon",
     emoji: "🍈",
-    size: "46.2 cm",
-    weight: "2150–2380 g",
+    size: "46.7 cm",
+    weight: "2300–2600 g",
     image: week35,
     baby:
       "The baby continues gaining weight rapidly and has less room for large movements.",
@@ -537,8 +537,8 @@ export const pregnancyWeeks = [
     week: 36,
     fruit: "Romaine Lettuce",
     emoji: "🥬",
-    size: "47.4 cm",
-    weight: "2380–2600 g",
+    size: "47.6 cm",
+    weight: "2500–2800 g",
     image: week36,
     baby:
       "The lungs are nearly mature and the baby's body continues preparing for birth.",
@@ -549,10 +549,10 @@ export const pregnancyWeeks = [
   },
   {
     week: 37,
-    fruit: "Swiss Chard",
-    emoji: "🥬",
+    fruit: "Winter Melon",
+    emoji: "🥒",
     size: "48.6 cm",
-    weight: "2600–2800 g",
+    weight: "2700–3000 g",
     image: week37,
     baby:
       "The baby is considered early term and continues gaining weight.",
@@ -566,7 +566,7 @@ export const pregnancyWeeks = [
     fruit: "Leek",
     emoji: "🌿",
     size: "49.8 cm",
-    weight: "2800–3000 g",
+    weight: "3000–3200 g",
     image: week38,
     baby:
       "The baby's organs are functioning well and final growth continues.",
@@ -580,7 +580,7 @@ export const pregnancyWeeks = [
     fruit: "Watermelon",
     emoji: "🍉",
     size: "50.7 cm",
-    weight: "3000–3200 g",
+    weight: "3200–3600 g",
     image: week39,
     baby:
       "The baby is fully developed and continues adding a small amount of body fat.",
@@ -594,7 +594,7 @@ export const pregnancyWeeks = [
     fruit: "Pumpkin",
     emoji: "🎃",
     size: "51.2 cm",
-    weight: "3200–3600 g",
+    weight: "3200–3500 g",
     image: week40,
     baby:
       "Your baby is full term and ready to meet you.",
