@@ -23,11 +23,11 @@ const Login = () => {
     setError('');
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      const loggedInUser = await login(email.trim(), password);
       if (remember) localStorage.setItem('momcare_remember_email', email.trim());
       else localStorage.removeItem('momcare_remember_email');
       toast.success('Welcome back to MomCare LK 💗');
-      navigate('/');
+      navigate(loggedInUser.role === 'super_admin' ? '/admin' : '/');
     } catch (err) {
       setError(err.message);
       toast.error(err.message || 'Could not log in.');
@@ -95,6 +95,7 @@ const Login = () => {
               <p>👩 mom@momcare.lk / mom123</p>
               <p>🧑 partner@momcare.lk / partner123</p>
               <p>🩺 doctor@momcare.lk / doctor123</p>
+              <p>🛡️ admin@momcare.lk / admin123</p>
             </div>
           </div>
         </div>

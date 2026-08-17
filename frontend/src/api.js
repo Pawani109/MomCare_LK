@@ -58,5 +58,8 @@ export const api = {
   getSosHistory: () => request('/api/emergency/sos'),
   getNearbyPlaces: ({ lat, lng, radius = 5000, category = 'all' }) => request(`/api/places/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius=${encodeURIComponent(radius)}&category=${encodeURIComponent(category)}`),
   sendSos: (data) => request('/api/emergency/sos', { method: 'POST', body: JSON.stringify(data) }),
+  getAdminDashboard: () => request('/api/admin/dashboard'),
+  getAdminUsers: () => request('/api/admin/users'),
+  updateAdminUserStatus: (id, active) => request(`/api/admin/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   askAssistant: (question) => request('/api/assistant', { method: 'POST', body: JSON.stringify({ question }) }),
 };

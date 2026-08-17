@@ -122,6 +122,9 @@ const users = [
     role: 'mom',
     familyId: 1,
     familyCode: 'MC-1001',
+    active: true,
+    createdAt: '2026-07-01T08:00:00Z',
+    lastLoginAt: null,
   },
   {
     id: 2,
@@ -130,6 +133,9 @@ const users = [
     passwordHash: bcrypt.hashSync('partner123', 10),
     role: 'partner',
     familyId: 1,
+    active: true,
+    createdAt: '2026-07-01T08:10:00Z',
+    lastLoginAt: null,
   },
   {
     id: 3,
@@ -138,9 +144,23 @@ const users = [
     passwordHash: bcrypt.hashSync('doctor123', 10),
     role: 'doctor',
     familyId: 1,
+    active: true,
+    createdAt: '2026-07-01T08:20:00Z',
+    lastLoginAt: null,
+  },
+  {
+    id: 4,
+    name: 'MomCare Super Admin',
+    email: 'admin@momcare.lk',
+    passwordHash: bcrypt.hashSync('admin123', 10),
+    role: 'super_admin',
+    familyId: null,
+    active: true,
+    createdAt: '2026-07-01T07:30:00Z',
+    lastLoginAt: null,
   },
 ];
-let nextUserId = 4;
+let nextUserId = 5;
 let nextFamilyId = 2;
 
 function makeToken(user) {
@@ -148,7 +168,7 @@ function makeToken(user) {
 }
 
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role, familyId: user.familyId, familyCode: user.role === 'mom' ? user.familyCode : undefined };
+  return { id: user.id, name: user.name, email: user.email, role: user.role, familyId: user.familyId, familyCode: user.role === 'mom' ? user.familyCode : undefined, active: user.active !== false, createdAt: user.createdAt, lastLoginAt: user.lastLoginAt || null };
 }
 
 app.post('/api/auth/register', (req, res) => {
@@ -168,7 +188,7 @@ app.post('/api/auth/register', (req, res) => {
     familyId = familyMom.familyId;
   }
 
-  const user = { id: nextUserId++, name, email, passwordHash: bcrypt.hashSync(password, 10), role, familyId, ...(generatedFamilyCode ? { familyCode: generatedFamilyCode } : {}) };
+  const user = { id: nextUserId++, name, email, passwordHash: bcrypt.hashSync(password, 10), role, familyId, active: true, createdAt: new Date().toISOString(), lastLoginAt: null, ...(generatedFamilyCode ? { familyCode: generatedFamilyCode } : {}) };
   users.push(user);
   if (role === 'mom') pregnancyProfiles.push({ familyId, momUserId: user.id, lmpDate: new Date().toISOString().slice(0, 10) });
   res.status(201).json({ token: makeToken(user), user: publicUser(user) });
@@ -239,6 +259,8 @@ app.post('/api/auth/login', (req, res) => {
   if (!user || !bcrypt.compareSync(password || '', user.passwordHash)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
+  if (user.active === false) return res.status(403).json({ error: 'This account has been deactivated. Please contact the MomCare administrator.' });
+  user.lastLoginAt = new Date().toISOString();
   res.json({ token: makeToken(user), user: publicUser(user) });
 });
 
@@ -249,6 +271,7 @@ app.get('/api/auth/me', (req, res) => {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const stored = users.find((u) => u.id === payload.id);
+    if (stored && stored.active === false) return res.status(403).json({ error: 'This account has been deactivated' });
     res.json({ user: stored ? publicUser(stored) : { id: payload.id, name: payload.name, email: payload.email, role: payload.role, familyId: payload.familyId } });
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
@@ -268,9 +291,12 @@ function getAuthUser(req) {
 }
 
 function requireAuth(req, res, next) {
-  const user = getAuthUser(req);
-  if (!user) return res.status(401).json({ error: 'Please log in to continue' });
-  req.user = user;
+  const tokenUser = getAuthUser(req);
+  if (!tokenUser) return res.status(401).json({ error: 'Please log in to continue' });
+  const stored = users.find((u) => u.id === tokenUser.id);
+  if (!stored) return res.status(401).json({ error: 'Account no longer exists' });
+  if (stored.active === false) return res.status(403).json({ error: 'This account has been deactivated' });
+  req.user = { ...tokenUser, ...publicUser(stored) };
   next();
 }
 
@@ -290,6 +316,7 @@ const permissionsByRole = {
   mom: { editPregnancy: true, manageAppointments: true, addHealthRecords: true, addCareComments: true, manageEmergencyContacts: true, triggerSos: true, viewFamilyData: true },
   partner: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, manageEmergencyContacts: false, triggerSos: true, viewFamilyData: true },
   doctor: { editPregnancy: false, manageAppointments: false, addHealthRecords: false, addCareComments: true, manageEmergencyContacts: false, triggerSos: false, viewFamilyData: true },
+  super_admin: { administerPlatform: true, viewAggregateData: true, manageAccountStatus: true },
 };
 
 function pregnancySummary(lmpDate) {
@@ -934,6 +961,107 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
   };
   nearbyCache.set(cacheKey, { createdAt: Date.now(), payload });
   return res.json(payload);
+});
+
+
+// ---- Super Admin portal ----
+// Super admins can manage account status and view platform-level summaries.
+// To protect maternal privacy, these endpoints return counts and profile metadata,
+// not the contents of private notes, scan files, mood entries, or medical comments.
+
+function adminFamilyRow(mom) {
+  const familyId = mom.familyId;
+  const profile = pregnancyProfiles.find((p) => p.familyId === familyId);
+  const partner = users.find((u) => u.familyId === familyId && u.role === 'partner');
+  const doctor = users.find((u) => u.familyId === familyId && u.role === 'doctor');
+  const pregnancy = profile ? pregnancySummary(profile.lmpDate) : null;
+  const familyAppointments = appointments.filter((a) => a.familyId === familyId);
+  const familyRecords = healthRecords.filter((r) => r.familyId === familyId);
+  const activeEmergencyContacts = emergencyContacts.filter((c) => c.familyId === familyId && c.active);
+  const familySos = sosEvents.filter((e) => e.familyId === familyId);
+
+  return {
+    familyId,
+    familyCode: mom.familyCode || '',
+    mother: {
+      id: mom.id,
+      name: mom.name,
+      email: mom.email,
+      active: mom.active !== false,
+      createdAt: mom.createdAt || null,
+      lastLoginAt: mom.lastLoginAt || null,
+    },
+    partner: partner ? {
+      id: partner.id,
+      name: partner.name,
+      email: partner.email,
+      active: partner.active !== false,
+      createdAt: partner.createdAt || null,
+      lastLoginAt: partner.lastLoginAt || null,
+    } : null,
+    doctor: doctor ? {
+      id: doctor.id,
+      name: doctor.name,
+      email: doctor.email,
+      active: doctor.active !== false,
+      createdAt: doctor.createdAt || null,
+      lastLoginAt: doctor.lastLoginAt || null,
+    } : null,
+    pregnancy: pregnancy ? {
+      currentWeek: pregnancy.currentWeek,
+      currentDay: pregnancy.currentDay,
+      dueDate: pregnancy.dueDate,
+      lmpDate: pregnancy.lmpDate,
+      progress: pregnancy.progress,
+    } : null,
+    counts: {
+      appointments: familyAppointments.length,
+      upcomingAppointments: familyAppointments.filter((a) => !a.completed && new Date(`${a.date}T${a.time || '00:00'}`) >= new Date()).length,
+      healthRecords: familyRecords.length,
+      scanReports: familyRecords.filter((r) => r.type === 'scan_report').length,
+      emergencyContacts: activeEmergencyContacts.length,
+      sosEvents: familySos.length,
+    },
+  };
+}
+
+app.get('/api/admin/dashboard', requireAuth, requireRole('super_admin'), (req, res) => {
+  const mothers = users.filter((u) => u.role === 'mom');
+  const families = mothers.map(adminFamilyRow);
+  const nonAdminUsers = users.filter((u) => u.role !== 'super_admin');
+  res.json({
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      totalFamilies: families.length,
+      totalMothers: mothers.length,
+      activeMothers: mothers.filter((u) => u.active !== false).length,
+      partners: users.filter((u) => u.role === 'partner').length,
+      activePartners: users.filter((u) => u.role === 'partner' && u.active !== false).length,
+      doctors: users.filter((u) => u.role === 'doctor').length,
+      activeDoctors: users.filter((u) => u.role === 'doctor' && u.active !== false).length,
+      totalUsers: nonAdminUsers.length,
+      activeUsers: nonAdminUsers.filter((u) => u.active !== false).length,
+      totalAppointments: appointments.length,
+      totalHealthRecords: healthRecords.length,
+      totalSosEvents: sosEvents.length,
+      forumPosts: forumPosts.filter((p) => !p.removed).length,
+    },
+    families,
+  });
+});
+
+app.get('/api/admin/users', requireAuth, requireRole('super_admin'), (req, res) => {
+  res.json(users.filter((u) => u.role !== 'super_admin').map(publicUser));
+});
+
+app.patch('/api/admin/users/:id/status', requireAuth, requireRole('super_admin'), (req, res) => {
+  const target = users.find((u) => u.id === Number(req.params.id));
+  if (!target || target.role === 'super_admin') return res.status(404).json({ error: 'Managed account not found' });
+  if (typeof req.body.active !== 'boolean') return res.status(400).json({ error: 'active must be true or false' });
+  target.active = req.body.active;
+  target.statusUpdatedAt = new Date().toISOString();
+  target.statusUpdatedBy = req.user.id;
+  res.json({ message: target.active ? 'Account activated' : 'Account deactivated', user: publicUser(target) });
 });
 
 // Simulated AI assistant — will be connected to a real AI API later.
