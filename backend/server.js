@@ -35,7 +35,7 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random()*1e9)}${path.extname(file.originalname).toLowerCase()}`),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname).toLowerCase()}`),
   }),
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
@@ -333,12 +333,12 @@ function pregnancySummary(lmpDate) {
 const weekContent = [
   { from: 1, to: 4, size: 'Poppy seed', baby: 'The fertilised egg is implanting and the earliest structures are beginning to form.', mother: 'You may notice tiredness, breast tenderness, or no symptoms at all.', checkup: 'Confirm the pregnancy and ask a healthcare professional about prenatal vitamins.' },
   { from: 5, to: 8, size: 'Raspberry', baby: 'The brain, spinal cord, and early heart structures are developing quickly.', mother: 'Nausea, food aversions, and fatigue are common during these weeks.', checkup: 'Arrange your first antenatal appointment and discuss any medicines you take.' },
-  { from: 9, to: 12, size: 'Lime', baby: 'Major organs are formed and continue to mature while tiny limbs become more defined.',mother: 'Morning sickness may continue, and your waist may start to feel different.', checkup: 'Your clinic may offer routine blood tests and dating guidance.' },
+  { from: 9, to: 12, size: 'Lime', baby: 'Major organs are formed and continue to mature while tiny limbs become more defined.', mother: 'Morning sickness may continue, and your waist may start to feel different.', checkup: 'Your clinic may offer routine blood tests and dating guidance.' },
   { from: 13, to: 16, size: 'Avocado', baby: 'Bones are hardening, facial features are clearer, and movement is increasing.', mother: 'Energy often improves, although headaches or stretching sensations can occur.', checkup: 'Continue regular antenatal visits and discuss screening options with your clinician.' },
   { from: 17, to: 20, size: 'Bell pepper', baby: 'Hearing is developing and you may begin to feel gentle movements.', mother: 'Your bump is more noticeable and back discomfort may begin.', checkup: 'An anatomy or anomaly scan is commonly planned around thisstage.' },
   { from: 21, to: 24, size: 'Corn cob', baby: 'The baby is gaining weight and practising breathing movements.', mother: 'You mayexperience leg cramps, heartburn, or stronger movements.', checkup: 'Keep scheduled clinic visits and ask about healthy weight gain.' },
   { from: 25, to: 28, size: 'Cauliflower', baby: 'The lungs and nervous system are maturing, and the baby responds to sound.', mother: 'Sleep may become harder and swelling can appear in the feet.', checkup: 'Your care team may discuss blood pressure, anaemia, and glucose screening.' },
-  { from: 29, to: 32, size: 'Coconut', baby: 'Rapid brain growth continues while body fat increases.', mother: 'Breathlessness, pelvic pressure, and frequent urination may increase.', checkup: 'Discuss baby movements and your birth plan at upcoming visits.'},
+  { from: 29, to: 32, size: 'Coconut', baby: 'Rapid brain growth continues while body fat increases.', mother: 'Breathlessness, pelvic pressure, and frequent urination may increase.', checkup: 'Discuss baby movements and your birth plan at upcoming visits.' },
   { from: 33, to: 36, size: 'Pineapple', baby: 'The baby continues gaining weight and may settle into a head-down position.', mother: 'Braxton Hicks contractions and tiredness may become more noticeable.', checkup: 'Appointments may become more frequent; review signs of labour with your clinician.' },
   { from: 37, to: 40, size: 'Watermelon', baby: 'The baby is considered term and continues preparing for birth.', mother: 'Pelvic pressure and irregular contractions are common as labour approaches.', checkup: 'Follow your clinic schedule and seek urgent care for reduced movements, bleeding, severe pain, or fluid leakage.' },
 ];
@@ -353,7 +353,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'MomCare 
 
 app.get('/api/access', requireAuth, (req, res) => {
   const members = users.filter((u) => u.familyId === req.user.familyId).map(publicUser);
-  res.json({ role: req.user.role, permissions: permissionsByRole[req.user.role], members, familyCode: familyMom(req)?.familyCode});
+  res.json({ role: req.user.role, permissions: permissionsByRole[req.user.role], members, familyCode: familyMom(req)?.familyCode });
 });
 
 app.get('/api/profile', requireAuth, (req, res) => {
@@ -361,7 +361,7 @@ app.get('/api/profile', requireAuth, (req, res) => {
   const profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
   if (!mom || !profile) return res.status(404).json({ error: 'Mother profile not found for this family' });
   const summary = pregnancySummary(profile.lmpDate);
-  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, emergencyContacts:emergencyContacts.filter((c) => c.familyId === req.user.familyId && c.active).sort((a, b) => a.priority - b.priority), ...summary });
+  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, emergencyContacts: emergencyContacts.filter((c) => c.familyId === req.user.familyId && c.active).sort((a, b) => a.priority - b.priority), ...summary });
 });
 
 app.get('/api/pregnancy', requireAuth, (req, res) => {
@@ -446,7 +446,7 @@ function validateHealthRecord(body, file, partial = false) {
   const type = body.type;
   if (!partial && !['weight', 'blood_pressure', 'scan_report'].includes(type)) return 'Invalid health record type';
   if (!partial && !body.date) return 'Date is required';
-  if (type === 'weight' && (!Number.isFinite(Number(body.value)) || Number(body.value) < 25 || Number(body.value) > 250)) return'Weight must be between 25 and 250 kg';
+  if (type === 'weight' && (!Number.isFinite(Number(body.value)) || Number(body.value) < 25 || Number(body.value) > 250)) return 'Weight must be between 25 and 250 kg';
   if (type === 'blood_pressure') {
     const sys = Number(body.systolic), dia = Number(body.diastolic);
     if (!Number.isFinite(sys) || !Number.isFinite(dia) || sys < 60 || sys > 250 || dia < 35 || dia > 150 || sys <= dia) return 'Enter a valid blood pressure reading';
@@ -456,16 +456,16 @@ function validateHealthRecord(body, file, partial = false) {
 }
 
 function serializeRecord(record) {
-  return { ...record, comments: healthRecordComments.filter((c) => c.recordId === record.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)) };
+  return { ...record, comments: healthRecordComments.filter((c) => c.recordId === record.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
 }
 
 app.get('/api/records', requireAuth, (req, res) => {
-  res.json(healthRecords.filter((r) => r.familyId === req.user.familyId).sort((a,b) => b.date.localeCompare(a.date)).map(serializeRecord));
+  res.json(healthRecords.filter((r) => r.familyId === req.user.familyId).sort((a, b) => b.date.localeCompare(a.date)).map(serializeRecord));
 });
 
 app.post('/api/records', requireAuth, requireRole('mom'), upload.single('file'), (req, res) => {
   const error = validateHealthRecord(req.body, req.file);
-  if (error) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(400).json({ error }); }
+  if (error) { if (req.file) fs.unlink(req.file.path, () => { }); return res.status(400).json({ error }); }
   const type = req.body.type;
   const record = { id: nextId++, familyId: req.user.familyId, createdBy: req.user.id, type, date: req.body.date, notes: String(req.body.notes || '').trim(), createdAt: new Date().toISOString() };
   if (type === 'weight') Object.assign(record, { value: Number(req.body.value), unit: 'kg' });
@@ -477,10 +477,10 @@ app.post('/api/records', requireAuth, requireRole('mom'), upload.single('file'),
 
 app.put('/api/records/:id', requireAuth, requireRole('mom'), upload.single('file'), (req, res) => {
   const record = healthRecords.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
-  if (!record) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(404).json({ error: 'Health record not found' }); }
+  if (!record) { if (req.file) fs.unlink(req.file.path, () => { }); return res.status(404).json({ error: 'Health record not found' }); }
   const body = { ...req.body, type: record.type };
   const error = validateHealthRecord(body, req.file, true);
-  if (error) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(400).json({ error }); }
+  if (error) { if (req.file) fs.unlink(req.file.path, () => { }); return res.status(400).json({ error }); }
   if (req.body.date) record.date = req.body.date;
   if ('notes' in req.body) record.notes = String(req.body.notes || '').trim();
   if (record.type === 'weight' && req.body.value) record.value = Number(req.body.value);
@@ -493,7 +493,7 @@ app.put('/api/records/:id', requireAuth, requireRole('mom'), upload.single('file
     if ('title' in req.body) record.title = String(req.body.title || 'Scan report').trim();
     if ('scanType' in req.body) record.scanType = String(req.body.scanType || 'Other').trim();
     if (req.file) {
-      if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => {});
+      if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => { });
       Object.assign(record, { fileName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, fileSize: req.file.size });
     }
   }
@@ -505,7 +505,7 @@ app.delete('/api/records/:id', requireAuth, requireRole('mom'), (req, res) => {
   const index = healthRecords.findIndex((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
   if (index < 0) return res.status(404).json({ error: 'Health record not found' });
   const [record] = healthRecords.splice(index, 1);
-  if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => {});
+  if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => { });
   healthRecordComments = healthRecordComments.filter((c) => c.recordId !== record.id);
   res.json({ message: 'Health record deleted' });
 });
@@ -655,7 +655,7 @@ app.post('/api/emergency/contacts', requireAuth, requireRole('mom'), (req, res) 
   const contact = {
     id: nextId++, familyId: req.user.familyId, createdBy: req.user.id,
     name: String(req.body.name).trim(), relationship: String(req.body.relationship || '').trim(), phone,
-    priority: Number.isInteger(Number(req.body.priority)) ? Math.max(1, Math.min(5, Number(req.body.priority))) : current.length+ 1,
+    priority: Number.isInteger(Number(req.body.priority)) ? Math.max(1, Math.min(5, Number(req.body.priority))) : current.length + 1,
     active: true, createdAt: new Date().toISOString(),
   };
   emergencyContacts.push(contact);
@@ -744,11 +744,14 @@ app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), async
 
 
 
-// ---- Nearby hospital and baby-shop finder ----
-// Primary source: OpenStreetMap Overpass. Fallback source: OpenStreetMap Nominatim.
-// Public community services can occasionally be unavailable, so the API degrades
-// gracefully and never turns the whole page into a 503 error.
+
+// ---- Google Maps / Places nearby finder ----
+// Primary source: Google Places API (New). If GOOGLE_MAPS_API_KEY is not configured
+// or Google is temporarily unavailable, the existing OpenStreetMap services are used
+// as a graceful fallback so the MomCare finder still works during development.
 const nearbyCache = new Map();
+const GOOGLE_PLACES_NEARBY_URL = 'https://places.googleapis.com/v1/places:searchNearby';
+const GOOGLE_PLACES_TEXT_URL = 'https://places.googleapis.com/v1/places:searchText';
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
@@ -765,9 +768,151 @@ function distanceKm(lat1, lon1, lat2, lon2) {
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Map service returned ${response.status}${detail ? `: ${detail.slice(0, 240)}` : ''}`);
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const GOOGLE_PLACE_FIELDS = [
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+  'places.location',
+  'places.primaryType',
+  'places.primaryTypeDisplayName',
+  'places.nationalPhoneNumber',
+  'places.websiteUri',
+  'places.googleMapsUri',
+  'places.rating',
+  'places.userRatingCount',
+  'places.regularOpeningHours',
+].join(',');
+
+function normaliseGooglePlace(place, lat, lng, typeOverride) {
+  const placeLat = Number(place.location?.latitude);
+  const placeLng = Number(place.location?.longitude);
+  if (!Number.isFinite(placeLat) || !Number.isFinite(placeLng)) return null;
+
+  const type = typeOverride || (String(place.primaryType || '').includes('pharmacy') || String(place.primaryType || '').includes('drugstore')
+    ? 'pharmacy'
+    : 'hospital');
+
+  return {
+    id: `google-${place.id}`,
+    googlePlaceId: place.id,
+    name: place.displayName?.text || (type === 'baby_shop' ? 'Baby shop' : type === 'pharmacy' ? 'Pharmacy' : 'Healthcare facility'),
+    type,
+    subtype: place.primaryTypeDisplayName?.text || String(place.primaryType || '').replaceAll('_', ' '),
+    lat: placeLat,
+    lng: placeLng,
+    distanceKm: Number(distanceKm(lat, lng, placeLat, placeLng).toFixed(2)),
+    address: place.formattedAddress || '',
+    phone: place.nationalPhoneNumber || '',
+    website: place.websiteUri || '',
+    googleMapsUri: place.googleMapsUri || '',
+    openingHours: (place.regularOpeningHours?.weekdayDescriptions || []).join(' · '),
+    openNow: place.regularOpeningHours?.openNow ?? null,
+    rating: Number.isFinite(Number(place.rating)) ? Number(place.rating) : null,
+    userRatingCount: Number.isFinite(Number(place.userRatingCount)) ? Number(place.userRatingCount) : null,
+    source: 'Google Places',
+  };
+}
+
+async function googleNearbySearch(lat, lng, radius, includedTypes) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) throw new Error('GOOGLE_MAPS_API_KEY is not configured');
+  const data = await fetchJsonWithTimeout(GOOGLE_PLACES_NEARBY_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': GOOGLE_PLACE_FIELDS,
+    },
+    body: JSON.stringify({
+      includedTypes,
+      maxResultCount: 20,
+      rankPreference: 'DISTANCE',
+      locationRestriction: {
+        circle: {
+          center: { latitude: lat, longitude: lng },
+          radius,
+        },
+      },
+    }),
+  }, 12000);
+  return data.places || [];
+}
+
+async function googleTextSearch(lat, lng, radius, textQuery) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) throw new Error('GOOGLE_MAPS_API_KEY is not configured');
+  const data = await fetchJsonWithTimeout(GOOGLE_PLACES_TEXT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': GOOGLE_PLACE_FIELDS,
+    },
+    body: JSON.stringify({
+      textQuery,
+      pageSize: 20,
+      rankPreference: 'DISTANCE',
+      locationBias: {
+        circle: {
+          center: { latitude: lat, longitude: lng },
+          radius,
+        },
+      },
+    }),
+  }, 12000);
+  return data.places || [];
+}
+
+async function searchGooglePlaces(lat, lng, radius, category) {
+  const searches = [];
+  if (category === 'all' || category === 'hospital') {
+    searches.push(googleNearbySearch(lat, lng, radius, ['hospital', 'general_hospital', 'medical_center', 'medical_clinic'])
+      .then((rows) => rows.map((p) => normaliseGooglePlace(p, lat, lng, 'hospital'))));
+  }
+  if (category === 'all' || category === 'pharmacy') {
+    searches.push(googleNearbySearch(lat, lng, radius, ['pharmacy', 'drugstore'])
+      .then((rows) => rows.map((p) => normaliseGooglePlace(p, lat, lng, 'pharmacy'))));
+  }
+  if (category === 'all' || category === 'baby_shop') {
+    // Google Places does not expose one universal baby-shop type, so Text Search is
+    // more reliable for businesses whose names/categories include baby or maternity.
+    searches.push(Promise.all([
+      googleTextSearch(lat, lng, radius, 'baby shop'),
+      googleTextSearch(lat, lng, radius, 'baby store'),
+      googleTextSearch(lat, lng, radius, 'maternity shop'),
+    ]).then((groups) => groups.flat().map((p) => normaliseGooglePlace(p, lat, lng, 'baby_shop'))));
+  }
+
+  const groups = await Promise.all(searches);
+  const unique = new Map();
+  for (const place of groups.flat().filter(Boolean)) {
+    if (place.distanceKm > radius / 1000 * 1.4) continue;
+    const key = place.googlePlaceId || `${place.type}:${place.name.toLowerCase()}:${place.lat.toFixed(4)}:${place.lng.toFixed(4)}`;
+    if (!unique.has(key)) unique.set(key, place);
+  }
+  return [...unique.values()].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 50);
+}
+
+// ----- OpenStreetMap fallback -----
 function placeType(tags = {}) {
   if (['hospital', 'clinic', 'doctors'].includes(tags.amenity) || tags.healthcare) return 'hospital';
-  return 'shop';
+  if (tags.amenity === 'pharmacy' || tags.shop === 'chemist') return 'pharmacy';
+  return 'baby_shop';
 }
 
 function displayAddress(tags = {}) {
@@ -775,29 +920,13 @@ function displayAddress(tags = {}) {
     .filter(Boolean).join(', ');
 }
 
-async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 12000) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    if (!response.ok) throw new Error(`Map service returned ${response.status}`);
-    return await response.json();
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function queryOverpass(query) {
   let lastError;
-  // GET is often more reliable than POST on school/corporate networks and proxies.
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const url = `${endpoint}?data=${encodeURIComponent(query)}`;
       return await fetchJsonWithTimeout(url, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'MomCare-LK-Educational-Demo/1.2',
-        },
+        headers: { 'Accept': 'application/json', 'User-Agent': 'MomCare-LK-Educational-Demo/1.3' },
       }, 15000);
     } catch (error) {
       lastError = error;
@@ -810,37 +939,25 @@ function radiusToViewbox(lat, lng, radiusMeters) {
   const latDelta = radiusMeters / 111320;
   const lngScale = Math.max(0.2, Math.cos(lat * Math.PI / 180));
   const lngDelta = radiusMeters / (111320 * lngScale);
-  // Nominatim expects left,top,right,bottom
   return `${lng - lngDelta},${lat + latDelta},${lng + lngDelta},${lat - latDelta}`;
 }
 
 async function queryNominatim(lat, lng, radius, category) {
-  const terms = category === 'hospital'
-    ? ['hospital', 'clinic', 'medical centre']
-    : category === 'shop'
-      ? ['baby shop', 'baby store', 'kids shop', 'children clothes']
-      : ['hospital', 'clinic', 'baby shop', 'kids shop'];
+  const terms = category === 'hospital' ? ['hospital', 'clinic', 'medical centre']
+    : category === 'pharmacy' ? ['pharmacy', 'chemist']
+      : category === 'baby_shop' ? ['baby shop', 'baby store', 'maternity shop', 'kids shop']
+        : ['hospital', 'clinic', 'pharmacy', 'baby shop', 'maternity shop'];
   const viewbox = radiusToViewbox(lat, lng, radius);
   const all = [];
   for (const term of terms) {
     try {
-      const params = new URLSearchParams({
-        q: term,
-        format: 'jsonv2',
-        limit: '12',
-        addressdetails: '1',
-        bounded: '1',
-        viewbox,
-      });
+      const params = new URLSearchParams({ q: term, format: 'jsonv2', limit: '12', addressdetails: '1', bounded: '1', viewbox });
       const rows = await fetchJsonWithTimeout(`${NOMINATIM_ENDPOINT}?${params}`, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'MomCare-LK-Educational-Demo/1.2',
-        },
+        headers: { 'Accept': 'application/json', 'User-Agent': 'MomCare-LK-Educational-Demo/1.3' },
       }, 10000);
       for (const row of rows || []) all.push({ ...row, _searchTerm: term });
-    } catch (error) {
-      // Try the next term. If all terms fail, the caller will receive an empty set.
+    } catch {
+      // Continue with the next term.
     }
   }
   return all;
@@ -849,37 +966,85 @@ async function queryNominatim(lat, lng, radius, category) {
 function normaliseNominatim(rows, lat, lng, category) {
   const unique = new Map();
   for (const row of rows || []) {
-    const itemLat = Number(row.lat);
-    const itemLng = Number(row.lon);
+    const itemLat = Number(row.lat), itemLng = Number(row.lon);
     if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) continue;
-    const typeText = `${row.type || ''} ${row.category || ''} ${row._searchTerm || ''}`.toLowerCase();
-    const type = /hospital|clinic|medical|doctor|health/.test(typeText) ? 'hospital' : 'shop';
+    const text = `${row.type || ''} ${row.category || ''} ${row._searchTerm || ''}`.toLowerCase();
+    const type = /pharmacy|chemist|drugstore/.test(text) ? 'pharmacy'
+      : /hospital|clinic|medical|doctor|health/.test(text) ? 'hospital' : 'baby_shop';
     if (category !== 'all' && type !== category) continue;
-    const name = row.name || String(row.display_name || '').split(',')[0] || (type === 'hospital' ? 'Healthcare facility' : 'Baby shop');
+    const name = row.name || String(row.display_name || '').split(',')[0] || (type === 'hospital' ? 'Healthcare facility' : type === 'pharmacy' ? 'Pharmacy' : 'Baby shop');
     const key = `${type}:${name.toLowerCase()}:${itemLat.toFixed(4)}:${itemLng.toFixed(4)}`;
     if (unique.has(key)) continue;
     unique.set(key, {
-      id: `nominatim-${row.place_id}`,
-      name,
-      type,
-      subtype: row.type || row.category || '',
-      lat: itemLat,
-      lng: itemLng,
+      id: `nominatim-${row.place_id}`, name, type, subtype: row.type || row.category || '',
+      lat: itemLat, lng: itemLng,
       distanceKm: Number(distanceKm(lat, lng, itemLat, itemLng).toFixed(2)),
-      address: row.display_name || '',
-      phone: '',
-      website: '',
-      openingHours: '',
+      address: row.display_name || '', phone: '', website: '', googleMapsUri: '', openingHours: '',
+      openNow: null, rating: null, userRatingCount: null, source: 'OpenStreetMap fallback',
     });
   }
   return [...unique.values()];
+}
+
+async function searchOpenStreetMap(lat, lng, radius, category) {
+  const hospital = `
+    node[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
+    way[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
+    relation[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
+    node[healthcare](around:${radius},${lat},${lng});
+    way[healthcare](around:${radius},${lat},${lng});`;
+  const pharmacy = `
+    node[amenity="pharmacy"](around:${radius},${lat},${lng});
+    way[amenity="pharmacy"](around:${radius},${lat},${lng});
+    node[shop="chemist"](around:${radius},${lat},${lng});`;
+  const baby = `
+    node[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
+    way[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
+    node["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});
+    way["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});`;
+  const selectors = category === 'hospital' ? hospital : category === 'pharmacy' ? pharmacy : category === 'baby_shop' ? baby : `${hospital}\n${pharmacy}\n${baby}`;
+  const query = `[out:json][timeout:20];(${selectors});out center tags;`;
+
+  try {
+    const data = await queryOverpass(query);
+    const unique = new Map();
+    for (const item of data.elements || []) {
+      const itemLat = item.lat ?? item.center?.lat, itemLng = item.lon ?? item.center?.lon;
+      if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) continue;
+      const tags = item.tags || {}, type = placeType(tags);
+      if (category !== 'all' && type !== category) continue;
+      const name = tags.name || tags['name:en'] || (type === 'hospital' ? 'Healthcare facility' : type === 'pharmacy' ? 'Pharmacy' : 'Baby shop');
+      const key = `${type}:${name.toLowerCase()}:${itemLat.toFixed(4)}:${itemLng.toFixed(4)}`;
+      if (unique.has(key)) continue;
+      unique.set(key, {
+        id: `${item.type}-${item.id}`, name, type, subtype: tags.amenity || tags.healthcare || tags.shop || '',
+        lat: itemLat, lng: itemLng, distanceKm: Number(distanceKm(lat, lng, itemLat, itemLng).toFixed(2)),
+        address: displayAddress(tags), phone: tags.phone || tags['contact:phone'] || '',
+        website: tags.website || tags['contact:website'] || '', googleMapsUri: '', openingHours: tags.opening_hours || '',
+        openNow: null, rating: null, userRatingCount: null, source: 'OpenStreetMap fallback',
+      });
+    }
+    return [...unique.values()];
+  } catch (overpassError) {
+    console.warn('Google/Overpass unavailable; trying Nominatim fallback:', overpassError.message);
+    return normaliseNominatim(await queryNominatim(lat, lng, radius, category), lat, lng, category);
+  }
 }
 
 app.get('/api/places/nearby', requireAuth, async (req, res) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
   const radius = Math.min(15000, Math.max(1000, Number(req.query.radius) || 5000));
-  const category = ['all', 'hospital', 'shop'].includes(req.query.category) ? req.query.category : 'all';
+  const allowedCategories = [
+    'all',
+    'hospital',
+    'pharmacy',
+    'baby_shop',
+  ];
+
+  const category = allowedCategories.includes(req.query.category)
+    ? req.query.category
+    : 'all';
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
     return res.status(400).json({ error: 'Valid latitude and longitude are required' });
   }
@@ -888,81 +1053,25 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
   const cached = nearbyCache.get(cacheKey);
   if (cached && Date.now() - cached.createdAt < 5 * 60 * 1000) return res.json(cached.payload);
 
-  const hospitalSelectors = `
-    node[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
-    way[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
-    relation[amenity~"hospital|clinic|doctors"](around:${radius},${lat},${lng});
-    node[healthcare](around:${radius},${lat},${lng});
-    way[healthcare](around:${radius},${lat},${lng});
-    relation[healthcare](around:${radius},${lat},${lng});`;
-  const shopSelectors = `
-    node[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
-    way[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
-    relation[shop~"baby_goods|toys|children|clothes|department_store"](around:${radius},${lat},${lng});
-    node["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});
-    way["name"~"baby|babies|kids|children|maternity|mothercare",i](around:${radius},${lat},${lng});`;
-  const selectors = category === 'hospital' ? hospitalSelectors : category === 'shop' ? shopSelectors : `${hospitalSelectors}\n${shopSelectors}`;
-  const query = `[out:json][timeout:20];(${selectors});out center tags;`;
-
-  let places = [];
-  let source = 'OpenStreetMap Overpass';
-  let fallback = false;
-
+  let places = [], source = 'Google Places API (New)', fallback = false, message = '';
   try {
-    const data = await queryOverpass(query);
-    const unique = new Map();
-    for (const item of data.elements || []) {
-      const itemLat = item.lat ?? item.center?.lat;
-      const itemLng = item.lon ?? item.center?.lon;
-      if (!Number.isFinite(itemLat) || !Number.isFinite(itemLng)) continue;
-      const tags = item.tags || {};
-      const type = placeType(tags);
-      if (category !== 'all' && type !== category) continue;
-      const name = tags.name || tags['name:en'] || (type === 'hospital' ? 'Unnamed healthcare facility' : 'Unnamed baby shop');
-      const key = `${type}:${name.toLowerCase()}:${itemLat.toFixed(4)}:${itemLng.toFixed(4)}`;
-      if (unique.has(key)) continue;
-      unique.set(key, {
-        id: `${item.type}-${item.id}`,
-        name,
-        type,
-        subtype: tags.amenity || tags.healthcare || tags.shop || '',
-        lat: itemLat,
-        lng: itemLng,
-        distanceKm: Number(distanceKm(lat, lng, itemLat, itemLng).toFixed(2)),
-        address: displayAddress(tags),
-        phone: tags.phone || tags['contact:phone'] || '',
-        website: tags.website || tags['contact:website'] || '',
-        openingHours: tags.opening_hours || '',
-      });
-    }
-    places = [...unique.values()];
+    places = await searchGooglePlaces(lat, lng, radius, category);
   } catch (error) {
-    console.warn('Overpass unavailable, trying Nominatim fallback:', error.message);
     fallback = true;
-    source = 'OpenStreetMap Nominatim fallback';
-    const rows = await queryNominatim(lat, lng, radius, category);
-    places = normaliseNominatim(rows, lat, lng, category);
+    source = 'OpenStreetMap fallback';
+    console.warn('Google Places unavailable; using fallback:', error.message);
+    places = await searchOpenStreetMap(lat, lng, radius, category);
+    message = process.env.GOOGLE_MAPS_API_KEY
+      ? 'Google Places is temporarily unavailable. Showing backup map results.'
+      : 'Google Maps API key is not configured. Showing backup map results.';
   }
 
-  places = places
-    .filter((place) => place.distanceKm <= radius / 1000 * 1.25)
-    .sort((a, b) => a.distanceKm - b.distanceKm)
-    .slice(0, 40);
-
-  const payload = {
-    center: { lat, lng },
-    radius,
-    category,
-    places,
-    source,
-    fallback,
-    message: places.length ? '' : 'Live map data is unavailable or no matching places were found. Use the Google Maps fallback buttons for a live search.',
-    fetchedAt: new Date().toISOString(),
-  };
+  places = places.filter((p) => p.distanceKm <= radius / 1000 * 1.4).sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 50);
+  if (!places.length && !message) message = 'No matching places were found in this radius. Try a larger search radius.';
+  const payload = { center: { lat, lng }, radius, category, places, source, fallback, message, fetchedAt: new Date().toISOString() };
   nearbyCache.set(cacheKey, { createdAt: Date.now(), payload });
   return res.json(payload);
 });
-
 
 // ---- Super Admin portal ----
 // Super admins can manage account status and view platform-level summaries.
