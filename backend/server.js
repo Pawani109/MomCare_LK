@@ -195,25 +195,94 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 
-// ---- Demo password reset flow ----
-// In production, send the OTP through an approved email/SMS provider instead of returning demoCode.
+// ---- Password reset flow with EmailJS OTP delivery ----
 const passwordResetRequests = new Map();
 
-app.post('/api/auth/forgot-password', (req, res) => {
+
+
+async function sendPasswordResetOtpEmail({ email, passcode, expiresAt }) {
+  const serviceId = process.env.EMAILJS_SERVICE_ID || 'service_0v59bie';
+  const templateId = process.env.EMAILJS_TEMPLATE_ID || 'template_y208wm9';
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY || 'NNZGTxM-_JoHnRYLt' ;
+  const privateKey = process.env.EMAILJS_PRIVATE_KEY  || 'zGvafQOANSTUuAheaXwK9';
+
+  if (!serviceId || !templateId || !publicKey) {
+    throw new Error('EmailJS is not configured. Add EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID and EMAILJS_PUBLIC_KEY to backend/.env');
+  }
+
+  const expiryTime = new Date(expiresAt).toLocaleTimeString('en-LK', {
+    timeZone: 'Asia/Colombo',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const payload = {
+    service_id: serviceId,
+    template_id: templateId,
+    user_id: publicKey,
+    template_params: {
+      email,
+      passcode,
+      time: expiryTime,
+    },
+    ...(privateKey ? { accessToken: privateKey } : {}),
+  };
+
+  const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => '');
+    throw new Error(`EmailJS send failed (${response.status})${details ? `: ${details}` : ''}`);
+  }
+}
+
+app.post('/api/auth/forgot-password', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const user = users.find((u) => u.email.toLowerCase() === email);
   if (!user) return res.status(404).json({ error: 'No MomCare account was found with that email address' });
+  if (user.active === false) return res.status(403).json({ error: 'This account has been deactivated. Please contact the MomCare administrator.' });
 
   const code = String(Math.floor(1000 + Math.random() * 9000));
-  passwordResetRequests.set(email, {
-    code,
-    userId: user.id,
-    expiresAt: Date.now() + 10 * 60 * 1000,
-    verified: false,
-    resetToken: null,
-  });
-  console.log(`Password reset OTP for ${email}: ${code}`);
-  res.json({ message: 'Verification code created', demoCode: code, expiresInMinutes: 10 });
+  const expiresAt = Date.now() + 15 * 60 * 1000;
+
+  try {
+
+        console.log('EMAILJS CONFIG CHECK');
+    console.log('Service ID:', process.env.EMAILJS_SERVICE_ID);
+    console.log('Template ID:', process.env.EMAILJS_TEMPLATE_ID);
+    console.log(
+      'Public Key:',
+      process.env.EMAILJS_PUBLIC_KEY ? 'Loaded ✅' : 'Missing ❌'
+    );
+    console.log(
+      'Private Key:',
+      process.env.EMAILJS_PRIVATE_KEY ? 'Loaded ✅' : 'Missing ❌'
+    );
+
+
+    await sendPasswordResetOtpEmail({ email, passcode: code, expiresAt });
+
+
+    passwordResetRequests.set(email, {
+      code,
+      userId: user.id,
+      expiresAt,
+      verified: false,
+      resetToken: null,
+    });
+
+    res.json({
+      message: 'Verification code sent to your email',
+      expiresInMinutes: 15,
+    });
+  } catch (error) {
+    console.error(`Password reset email to ${email} failed:`, error.message);
+    res.status(502).json({ error: 'We could not send the verification email. Please try again shortly.' });
+  }
 });
 
 app.post('/api/auth/verify-reset-code', (req, res) => {

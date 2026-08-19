@@ -8,7 +8,6 @@ const ForgotPassword = () => {
   const [step, setStep] = useState('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState(['', '', '', '']);
-  const [demoCode, setDemoCode] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,9 +22,8 @@ const ForgotPassword = () => {
     setLoading(true);
     try {
       const result = await api.forgotPassword(email.trim());
-      setDemoCode(result.demoCode || '');
       setStep('otp');
-      toast.success('Verification code created.');
+      toast.success(result.message || 'Verification code sent to your email.');
     } catch (err) {
       toast.error(err.message || 'Could not start password reset.');
     } finally {
@@ -75,7 +73,7 @@ const ForgotPassword = () => {
   };
 
   const title = step === 'email' ? 'Forgot Password?' : step === 'otp' ? 'Enter OTP' : 'Create New Password';
-  const subtitle = step === 'email' ? "No worries. Enter your registered email and we'll verify your account." : step === 'otp' ? 'Enter the 4-digit verification code for your MomCare account.' : 'Choose a new password you can remember.';
+  const subtitle = step === 'email' ? "No worries. Enter your registered email and we'll verify your account." : step === 'otp' ? 'Enter the 4-digit verification code we sent to your email.' : 'Choose a new password you can remember.';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 px-4 py-8 flex items-center justify-center">
@@ -100,7 +98,6 @@ const ForgotPassword = () => {
 
         {step === 'otp' && (
           <form onSubmit={verifyCode} className="mt-7">
-            {demoCode && <div className="mb-5 rounded-xl border border-pink-100 bg-pink-50 px-4 py-3 text-center text-sm text-pink-700"><span className="font-semibold">Demo OTP:</span> <span className="text-lg font-black tracking-[0.25em]">{demoCode}</span></div>}
             <div className="flex justify-center gap-3">
               {code.map((digit, index) => <input key={index} ref={(el) => { inputs.current[index] = el; }} inputMode="numeric" maxLength={1} value={digit} onChange={(e) => changeDigit(index, e.target.value)} onKeyDown={(e) => { if (e.key === 'Backspace' && !digit && index > 0) inputs.current[index - 1]?.focus(); }} className="h-14 w-14 rounded-xl border border-pink-200 bg-pink-50 text-center text-xl font-black text-pink-600 outline-none focus:ring-4 focus:ring-pink-100" />)}
             </div>
