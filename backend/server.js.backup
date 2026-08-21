@@ -20,23 +20,6 @@ function toTextLkFormat(phone) {
   return digits;
 }
 
-async function shortenUrl(longUrl) {
-  try {
-    const res = await fetch(
-      `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`,
-      { method: 'GET', signal: AbortSignal.timeout(5000) }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const short = (await res.text()).trim();
-    if (short.startsWith('http')) return short;
-    throw new Error('Invalid short URL');
-  } catch (err) {
-    console.error('URL shortening failed:', err.message);
-    return longUrl;
-  }
-}
-
-
 async function sendSmsToContact(phone, message) {
   try {
     const result = await sendSMS({ phoneNumber: toTextLkFormat(phone), message });
@@ -799,15 +782,12 @@ app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), async
     location = { lat, lng, accuracy: Number.isFinite(accuracy) ? Math.max(0, accuracy) : null };
   }
 
-  const longMapUrl = location
-    ? `https://www.google.com/maps?q=${location.lat},${location.lng}`
-    : null;
-
-  const mapUrl = longMapUrl ? await shortenUrl(longMapUrl) : null;
-
-  const message = mapUrl
-    ? `SOS: ${req.user.name} needs help. Location: ${mapUrl}`
-    : `SOS: ${req.user.name} needs help. Location unavailable. Call now.`;
+  const mapUrl = location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : null;
+  const message = [
+    `SOS from ${req.user.name}. I may need urgent help.`,
+    mapUrl ? `My current location: ${mapUrl}` : 'My location could not be captured. Please call me immediately.',
+    `Alert created: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Colombo' })}`,
+  ].join('\n');
   const event = {
     id: nextId++, familyId: req.user.familyId, triggeredBy: req.user.id,
     triggeredByName: req.user.name, triggeredByRole: req.user.role,
@@ -1262,74 +1242,21 @@ app.patch('/api/admin/users/:id/status', requireAuth, requireRole('super_admin')
   res.json({ message: target.active ? 'Account activated' : 'Account deactivated', user: publicUser(target) });
 });
 
-// ---- Caring AI Assistant (powered by Groq) ----
-app.post('/api/assistant', requireAuth, async (req, res) => {
-  const question = String(req.body.question || '').trim();
-  if (!question) {
-    return res.status(400).json({ error: 'Please type a question' });
-  }
+// Simulated AI assistant — will be connected to a real AI API later.
+const aiAnswers = [
+  { keywords: ['sleep', 'insomnia'], answer: 'Try sleeping on your left side with a pillow between your knees. Avoid screens an hour before bed. If insomnia persists, mention it at your next clinic visit.' },
+  { keywords: ['food', 'eat', 'diet', 'nutrition'], answer: 'Focus on iron-rich foods (green leaves, lentils), calcium (milk, curd), and folate. Avoid raw fish, unpasteurised dairy, and limit caffeine to one cup per day.' },
+  { keywords: ['pain', 'back'], answer: 'Mild back pain is common. Gentle stretching, warm compresses, and good posture help. Severe or sudden pain should be checked by your doctor immediately.' },
+  { keywords: ['kick', 'movement'], answer: 'Most mothers feel movements between weeks 18–25. From week 28, count kicks daily — you should feel 10 movements within 2 hours. If not, contact your clinic.' },
+];
 
-  const systemPrompt = `You are MomCare, a warm, caring and supportive AI companion for pregnant mothers in Sri Lanka.
-
-Personality rules:
-- Speak gently and kindly, like a trusted older sister or midwife friend
-- Keep answers SHORT (maximum 3-4 short paragraphs). 
-NEVER use markdown tables. 
-Use simple bullet points or numbered lists instead of tables.
-- Use simple everyday English
-- Always start with empathy
-- Never give medical diagnoses or prescribe medicine
-- Always end with a gentle reminder to consult a doctor or midwife
-- For emergency symptoms (severe pain, bleeding, reduced baby movement) → tell them to go to hospital or call 1990 immediately
-
-When talking about food, prefer common Sri Lankan examples:
-- Rice & curry, string hoppers, hoppers, kiribath
-- Dhal, jackfruit, breadfruit, gotukola, mukunuwenna, kankun
-- Fish (thalapath, balaya, hurulla), eggs, chicken
-- Papaya, banana, mango, wood apple, passion fruit
-- Curd, fresh milk, coconut water
-- Avoid or limit: raw fish, unpasteurised milk, too much fried food, excess caffeine
-
-Current user: ${req.user.name} (${req.user.role})`;
-
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: question }
-        ],
-        temperature: 0.7,
-        max_tokens: 450,
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Groq API error: ${response.status} - ${errText}`);
-    }
-
-    const data = await response.json();
-    const answer = data.choices?.[0]?.message?.content?.trim() ||
-      "I'm here for you. Could you please tell me a bit more so I can help better?";
-
-    res.json({
-      answer,
-      disclaimer: 'This is general supportive guidance only, not medical advice. Please consult your doctor or midwife for personal care.'
-    });
-  } catch (err) {
-    console.error('AI Assistant error:', err.message);
-    res.status(502).json({
-      answer: "I'm having a little trouble connecting right now. Please try again in a moment, or talk to your doctor if it's urgent.",
-      disclaimer: 'This is general supportive guidance only, not medical advice.'
-    });
-  }
+app.post('/api/assistant', (req, res) => {
+  const q = (req.body.question || '').toLowerCase();
+  const match = aiAnswers.find((a) => a.keywords.some((k) => q.includes(k)));
+  const answer = match
+    ? match.answer
+    : 'Thanks for your question! In the full version, our AI assistant will answer any pregnancy-related question. For now, try asking about sleep, diet, back pain, or baby movements. Always consult your doctor or midwife for medical concerns.';
+  res.json({ answer, disclaimer: 'This is general guidance, not medical advice.' });
 });
 
 app.use((err, _req, res, _next) => {
