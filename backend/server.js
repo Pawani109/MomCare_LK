@@ -6,19 +6,36 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { sendSMS } = require('textlk-node');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+const { sendSMS } = require('textlk-node');
+
 function toTextLkFormat(phone) {
-  // Text.lk expects e.g. 94771234567 — no plus sign, no leading 0
   const digits = String(phone || '').replace(/[^\d]/g, '');
   if (digits.startsWith('94')) return digits;
   if (digits.startsWith('0')) return `94${digits.slice(1)}`;
   return digits;
 }
+
+async function shortenUrl(longUrl) {
+  try {
+    const res = await fetch(
+      `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`,
+      { method: 'GET', signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const short = (await res.text()).trim();
+    if (short.startsWith('http')) return short;
+    throw new Error('Invalid short URL');
+  } catch (err) {
+    console.error('URL shortening failed:', err.message);
+    return longUrl;
+  }
+}
+
 
 async function sendSmsToContact(phone, message) {
   try {
@@ -782,12 +799,15 @@ app.post('/api/emergency/sos', requireAuth, requireRole('mom', 'partner'), async
     location = { lat, lng, accuracy: Number.isFinite(accuracy) ? Math.max(0, accuracy) : null };
   }
 
-  const mapUrl = location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : null;
-  const message = [
-    `SOS from ${req.user.name}. I may need urgent help.`,
-    mapUrl ? `My current location: ${mapUrl}` : 'My location could not be captured. Please call me immediately.',
-    `Alert created: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Colombo' })}`,
-  ].join('\n');
+  const longMapUrl = location
+    ? `https://www.google.com/maps?q=${location.lat},${location.lng}`
+    : null;
+
+  const mapUrl = longMapUrl ? await shortenUrl(longMapUrl) : null;
+
+  const message = mapUrl
+    ? `SOS: ${req.user.name} needs help. Location: ${mapUrl}`
+    : `SOS: ${req.user.name} needs help. Location unavailable. Call now.`;
   const event = {
     id: nextId++, familyId: req.user.familyId, triggeredBy: req.user.id,
     triggeredByName: req.user.name, triggeredByRole: req.user.role,
