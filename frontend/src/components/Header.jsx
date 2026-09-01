@@ -29,7 +29,7 @@ const Header = () => {
       <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-pink-600">
-            🤰{t.appName}
+            🤰 {t.appName}
             {/* <span className="ml-2 text-[10px] font-medium uppercase tracking-wide bg-purple-100 text-purple-600 rounded-full px-2 py-0.5 align-middle">{t.demoBadge}</span> */}
           </h1>
           <p className="text-xs text-gray-500 hidden sm:block">{t.tagline}</p>
