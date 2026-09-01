@@ -6,7 +6,7 @@ const common = {
 
 export const translations = {
   en: {
-    ...common.en, appName:'MomCare LK', tagline:"Sri Lanka's all-in-one platform for pregnant mothers", demoBadge:'Demo version',
+    ...common.en, appName:'MomCare LK', tagline:"Sri Lanka's all-in-one platform for pregnant mothers",
     nav:{home:'Home',tracker:'Tracker',appointments:'Appointments',careTeam:'Care Team',health:'Health Records',emergency:'Emergency',shopping:'Nearby Finder',wellbeing:'Wellbeing'},
     auth:{login:'Log In',register:'Sign Up',logout:'Log Out',email:'Email',password:'Password',fullName:'Full name',accountType:'Account type',noAccount:"Don't have an account?",haveAccount:'Already have an account?',loginWelcome:'Welcome back! Log in to continue.',registerWelcome:'Create your MomCare account.',demoAccounts:'Demo accounts',familyCode:'Family invitation code',familyHelp:'Ask the mother for her private family code.'},
     roles:{mom:'Mother',partner:'Partner',doctor:'Doctor / Midwife',momAccess:'Mother access',partnerAccess:'Partner access',doctorAccess:'Doctor / Midwife access',readOnly:'Read-only access',readOnlyText:"You can view the mother's shared information, but you cannot change it."},
