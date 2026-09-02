@@ -119,7 +119,7 @@ const Home = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-7">
       {/* Clear first-impression hero */}
-      <section className="relative overflow-hidden rounded-[30px] border border-pink-100 bg-gradient-to-br from-pink-50 via-white to-pink-100 shadow-sm">
+      <section className="relative isolate overflow-hidden rounded-[30px] border border-pink-100 bg-gradient-to-br from-pink-50 via-white to-pink-100 shadow-sm">
         <div className="grid min-h-[360px] lg:grid-cols-[1.25fr_.75fr]">
           <div className="relative z-10 flex flex-col justify-center p-7 sm:p-9 lg:p-12">
             <span className="w-fit rounded-full bg-pink-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-pink-700">
