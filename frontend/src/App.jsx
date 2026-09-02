@@ -15,6 +15,7 @@ import PregnancyTracker from "./components/PregnancyTracker";
 import Appointments from "./components/Appointments";
 import CareTeam from "./components/CareTeam";
 import FloatingAssistantBot from "./components/FloatingAssistantBot";
+import SidePager from "./components/SidePager";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
 
 function RequireAuth({ children }) {
@@ -74,6 +75,7 @@ function AppRoutes() {
         </Routes>
 
         <FloatingAssistantBot />
+        <SidePager />
 
         <footer className="text-center text-xs text-gray-400 py-6">
           {t.footer}

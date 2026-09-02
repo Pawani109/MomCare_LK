@@ -19,3 +19,35 @@
 .momcare-wave {
   animation: wave 1.8s ease-in-out infinite;
 }
+
+/* Header "e-mark" paging arrows – beckon like the assistant's waving hand */
+@keyframes emark-wave-right {
+  0%, 60%, 100% { transform: translateX(0) rotate(0deg); }
+  10% { transform: translateX(3px) rotate(10deg); }
+  20% { transform: translateX(-1px) rotate(-5deg); }
+  30% { transform: translateX(4px) rotate(9deg); }
+  40% { transform: translateX(-1px) rotate(-3deg); }
+  50% { transform: translateX(3px) rotate(5deg); }
+}
+
+@keyframes emark-wave-left {
+  0%, 60%, 100% { transform: translateX(0) rotate(0deg); }
+  10% { transform: translateX(-3px) rotate(-10deg); }
+  20% { transform: translateX(1px) rotate(5deg); }
+  30% { transform: translateX(-4px) rotate(-9deg); }
+  40% { transform: translateX(1px) rotate(3deg); }
+  50% { transform: translateX(-3px) rotate(-5deg); }
+}
+
+.emark-wave-right { animation: emark-wave-right 1.8s ease-in-out infinite; transform-origin: center; }
+.emark-wave-left { animation: emark-wave-left 1.8s ease-in-out infinite; transform-origin: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .momcare-wave,
+  .emark-wave-right,
+  .emark-wave-left { animation: none; }
+}
+
+/* Hide the horizontal scrollbar on the header tab strip */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

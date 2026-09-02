@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +8,7 @@ const Header = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const navRef = useRef(null);
 
   const handleLogout = () => {
     logout();
@@ -24,13 +26,18 @@ const Header = () => {
     { path: '/wellbeing', label: t.nav.wellbeing, icon: '💜' },
   ];
 
+  // Keep the active tab in view as the route changes (nicer than a raw scroll strip).
+  useEffect(() => {
+    const active = navRef.current?.querySelector('[data-active="true"]');
+    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [location.pathname]);
+
   return (
     <header className="fixed top-0 left-0 w-full bg-white/90 backdrop-blur border-b border-pink-100 z-10">
       <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-pink-600">
             🤰 {t.appName}
-            {/* <span className="ml-2 text-[10px] font-medium uppercase tracking-wide bg-purple-100 text-purple-600 rounded-full px-2 py-0.5 align-middle">{t.demoBadge}</span> */}
           </h1>
           <p className="text-xs text-gray-500 hidden sm:block">{t.tagline}</p>
         </div>
@@ -59,16 +66,24 @@ const Header = () => {
           )}
         </div>
       </div>
-      <nav className="max-w-4xl mx-auto px-4 flex gap-1 overflow-x-auto pb-2">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.path}
-            to={tab.path}
-            className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${location.pathname === tab.path ? 'bg-purple-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-purple-50'}`}
-          >
-            {tab.icon} {tab.label}
-          </Link>
-        ))}
+
+      <nav
+        ref={navRef}
+        className="no-scrollbar max-w-4xl mx-auto flex gap-1 overflow-x-auto scroll-smooth px-4 pb-2"
+      >
+        {tabs.map((tab) => {
+          const isActive = location.pathname === tab.path;
+          return (
+            <Link
+              key={tab.path}
+              to={tab.path}
+              data-active={isActive}
+              className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${isActive ? 'bg-purple-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-purple-50'}`}
+            >
+              {tab.icon} {tab.label}
+            </Link>
+          );
+        })}
       </nav>
     </header>
   );
