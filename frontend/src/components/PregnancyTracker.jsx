@@ -116,10 +116,10 @@ const PregnancyTracker = () => {
           <div className="flex flex-wrap items-end justify-between gap-2 mt-0.5">
             <div>
               <span className="text-3xl font-extrabold tracking-tight">
-                Week {tracker.currentWeek}
+                {ptxt.weekLabel} {tracker.currentWeek}
               </span>
               <span className="ml-2 text-pink-50/80 text-sm">
-                + {tracker.currentDay} days
+                + {tracker.currentDay} {ptxt.daysSuffix}
               </span>
             </div>
 
@@ -142,7 +142,7 @@ const PregnancyTracker = () => {
 
           <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
             <span>🌸</span>
-            <span>{tracker.progress}% of your 40-week journey</span>
+            <span>{tracker.progress}% {ptxt.journeyPercent}</span>
           </div>
         </div>
       </Card>
@@ -167,7 +167,7 @@ const PregnancyTracker = () => {
 
             <label className="flex-1 text-sm text-gray-600">
 
-              First day of last menstrual period (LMP)
+              {ptxt.lmpFull}
 
               <input
                 type="date"
@@ -189,7 +189,7 @@ const PregnancyTracker = () => {
               className="rounded-xl bg-pink-500 px-5 py-2.5 text-white font-medium transition hover:bg-pink-600 disabled:opacity-60"
             >
               {saving
-                ? "Saving..."
+                ? ptxt.saving
                 : ptxt.update}
             </button>
 
@@ -224,18 +224,18 @@ const PregnancyTracker = () => {
               <div>
 
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-pink-500">
-                  Pregnancy Journey
+                  {ptxt.journey}
                 </p>
 
                 <h2 className="mt-1 text-2xl sm:text-3xl font-extrabold text-gray-800">
-                  Week {selectedWeek.week}
+                  {ptxt.weekLabel} {selectedWeek.week}
                 </h2>
 
               </div>
 
               {selectedWeek.week === tracker.currentWeek && (
                 <span className="rounded-full bg-pink-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm">
-                  Your Current Week
+                  {ptxt.currentWeekBadge}
                 </span>
               )}
 
@@ -276,11 +276,11 @@ const PregnancyTracker = () => {
                   </div>
 
                   <div className="mt-4 rounded-full bg-pink-500 text-white font-semibold px-5 py-1.5 shadow">
-                    Week {selectedWeek.week}
+                    {ptxt.weekLabel} {selectedWeek.week}
                   </div>
 
                   <p className="mt-4 text-sm text-gray-500">
-                    Your baby is about the size of a
+                    {ptxt.sizeOfA}
                   </p>
 
                   <div className="mt-1 flex items-center justify-center gap-2">
@@ -300,7 +300,7 @@ const PregnancyTracker = () => {
                     <div className="rounded-2xl bg-white/80 border border-pink-100 p-3">
 
                       <p className="text-xs text-gray-400">
-                        Length
+                        {ptxt.lengthLabel}
                       </p>
 
                       <p className="font-bold text-gray-700 mt-1">
@@ -312,7 +312,7 @@ const PregnancyTracker = () => {
                     <div className="rounded-2xl bg-white/80 border border-purple-100 p-3">
 
                       <p className="text-xs text-gray-400">
-                        Weight
+                        {ptxt.weightLabel}
                       </p>
 
                       <p className="font-bold text-gray-700 mt-1">
@@ -344,7 +344,7 @@ const PregnancyTracker = () => {
                     </div>
 
                     <h3 className="font-bold text-pink-700">
-                      Baby Development
+                      {ptxt.babyDevelopment}
                     </h3>
 
                   </div>
@@ -366,7 +366,7 @@ const PregnancyTracker = () => {
                     </div>
 
                     <h3 className="font-bold text-purple-700">
-                      Changes in You
+                      {ptxt.changesInYou}
                     </h3>
 
                   </div>
@@ -388,7 +388,7 @@ const PregnancyTracker = () => {
                     </div>
 
                     <h3 className="font-bold text-emerald-700">
-                      Clinical Guidance
+                      {ptxt.clinicalGuidance}
                     </h3>
 
                   </div>
@@ -408,7 +408,7 @@ const PregnancyTracker = () => {
             <div className="mt-5 text-center rounded-2xl bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 border border-pink-100 px-4 py-3">
 
               <p className="text-sm font-medium text-pink-600">
-                💗 Every week brings you one step closer to meeting your little one. 💗
+                💗 {ptxt.quote} 💗
               </p>
 
             </div>
@@ -427,12 +427,11 @@ const PregnancyTracker = () => {
         <div className="mb-5">
 
           <SectionTitle>
-            💗 Explore Weeks
+            💗 {ptxt.exploreWeeks}
           </SectionTitle>
 
           <p className="text-sm text-gray-500">
-            Select a week to see your baby's development,
-            size, maternal changes and clinical guidance.
+            {ptxt.exploreDesc}
           </p>
 
         </div>
@@ -475,7 +474,7 @@ const PregnancyTracker = () => {
 
                 {isCurrent && (
                   <span className="absolute -top-2 right-2 rounded-full bg-pink-500 px-2 py-0.5 text-[9px] font-bold text-white">
-                    CURRENT
+                    {ptxt.currentTag}
                   </span>
                 )}
 
@@ -486,7 +485,7 @@ const PregnancyTracker = () => {
                       : "text-pink-600"
                   }`}
                 >
-                  Week {weekData.week}
+                  {ptxt.weekLabel} {weekData.week}
                 </p>
 
                 <div className="text-4xl my-2 transition-transform duration-300 group-hover:scale-110">

@@ -31,6 +31,10 @@ const homeCopy = {
     addVisit: 'Add appointment',
     babyTitle: 'Baby this week',
     support: 'Care & support',
+    supportHeading: 'MomCare is more than a pregnancy calendar',
+    supportBody: 'Health records, SOS support, nearby care, wellbeing check-ins and your care team are available from one dashboard.',
+    exploreWellbeing: 'Explore wellbeing',
+    open: 'Open',
     protected: 'Your family health information is protected by role-based access.',
     roleDoctor: 'Doctor / Midwife access',
     roleMom: 'Mom access',
@@ -53,6 +57,10 @@ const homeCopy = {
     addVisit: 'හමුවීමක් එක් කරන්න',
     babyTitle: 'මෙම සතියේ බිළිඳා',
     support: 'සත්කාර සහ සහාය',
+    supportHeading: 'MomCare යනු ගර්භණී දින දර්ශනයකට වඩා වැඩි යමක්',
+    supportBody: 'සෞඛ්‍ය වාර්තා, SOS සහාය, ආසන්න සත්කාර, මානසික සුව පරීක්ෂාව සහ ඔබේ සත්කාර කණ්ඩායම එකම උපකරණ පුවරුවකින් ලබාගත හැක.',
+    exploreWellbeing: 'මානසික සුවය බලන්න',
+    open: 'විවෘත කරන්න',
     protected: 'ඔබේ පවුලේ සෞඛ්‍ය තොරතුරු භූමිකා පදනම් වූ ප්‍රවේශයෙන් ආරක්ෂිතයි.',
     roleDoctor: 'වෛද්‍ය / වින්නඹු ප්‍රවේශය',
     roleMom: 'මවගේ ප්‍රවේශය',
@@ -75,6 +83,10 @@ const homeCopy = {
     addVisit: 'சந்திப்பைச் சேர்க்க',
     babyTitle: 'இந்த வாரம் குழந்தை',
     support: 'பராமரிப்பு மற்றும் ஆதரவு',
+    supportHeading: 'MomCare ஒரு கர்ப்ப நாட்காட்டியை விட மேலானது',
+    supportBody: 'சுகாதார பதிவுகள், SOS ஆதரவு, அருகிலுள்ள பராமரிப்பு, நல்வாழ்வு பரிசோதனைகள் மற்றும் உங்கள் பராமரிப்பு குழு ஒரே டாஷ்போர்டில் கிடைக்கும்.',
+    exploreWellbeing: 'நல்வாழ்வை பார்க்க',
+    open: 'திற',
     protected: 'உங்கள் குடும்ப சுகாதார தகவல்கள் பங்கு அடிப்படையிலான அணுகலால் பாதுகாக்கப்படுகின்றன.',
     roleDoctor: 'மருத்துவர் / மருத்துவச்சி அணுகல்',
     roleMom: 'அம்மா அணுகல்',
@@ -107,10 +119,10 @@ const Home = () => {
       : copy.roleMom;
 
   const pillars = [
-    { path: '/pregnancy', icon: '🤰', title: 'Pregnancy Tracker', desc: 'Follow your baby’s development week by week.' },
-    { path: '/appointments', icon: '📅', title: 'Clinic Appointments', desc: 'Plan clinic visits and keep reminders together.' },
+    { path: '/pregnancy', icon: '🤰', title: t.home.trackerTitle, desc: t.home.trackerDesc },
+    { path: '/appointments', icon: '📅', title: t.home.appointmentsTitle, desc: t.home.appointmentsDesc },
     { path: '/health', icon: '🩺', title: t.pillars.health, desc: t.pillars.healthDesc },
-    { path: '/care-team', icon: '👥', title: 'Care Team & Access', desc: 'See linked family and care-team access.' },
+    { path: '/care-team', icon: '👥', title: t.home.careTitle, desc: t.home.careDesc },
     { path: '/emergency', icon: '🚨', title: t.pillars.emergency, desc: t.pillars.emergencyDesc },
     { path: '/shopping', icon: '📍', title: t.pillars.shopping, desc: t.pillars.shoppingDesc },
     { path: '/wellbeing', icon: '💗', title: t.pillars.wellbeing, desc: t.pillars.wellbeingDesc },
@@ -244,11 +256,11 @@ const Home = () => {
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-2xl">💗</div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-pink-500">{copy.support}</p>
-                <h3 className="mt-1 font-bold text-gray-900">MomCare is more than a pregnancy calendar</h3>
+                <h3 className="mt-1 font-bold text-gray-900">{copy.supportHeading}</h3>
                 <p className="mt-2 text-sm leading-6 text-gray-500">
-                  Health records, SOS support, nearby care, wellbeing check-ins and your care team are available from one dashboard.
+                  {copy.supportBody}
                 </p>
-                <Link to="/wellbeing" className="mt-4 inline-flex text-sm font-semibold text-pink-600 hover:text-pink-700">Explore wellbeing →</Link>
+                <Link to="/wellbeing" className="mt-4 inline-flex text-sm font-semibold text-pink-600 hover:text-pink-700">{copy.exploreWellbeing} →</Link>
               </div>
             </div>
           </Card>
@@ -272,7 +284,7 @@ const Home = () => {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-pink-50 text-2xl transition group-hover:bg-pink-100">{p.icon}</div>
               <h3 className="mt-4 font-bold text-gray-900">{p.title}</h3>
               <p className="mt-1 min-h-[40px] text-sm leading-5 text-gray-500">{p.desc}</p>
-              <span className="mt-4 inline-flex text-sm font-semibold text-pink-600">Open →</span>
+              <span className="mt-4 inline-flex text-sm font-semibold text-pink-600">{copy.open} →</span>
             </Link>
           ))}
         </div>

@@ -17,9 +17,9 @@ const Header = () => {
 
   const tabs = [
     { path: '/', label: t.nav.home, icon: '🏠' },
-    { path: '/pregnancy', label: 'Tracker', icon: '🤰' },
-    { path: '/appointments', label: 'Appointments', icon: '📅' },
-    { path: '/care-team', label: 'Care Team', icon: '👥' },
+    { path: '/pregnancy', label: t.nav.tracker, icon: '🤰' },
+    { path: '/appointments', label: t.nav.appointments, icon: '📅' },
+    { path: '/care-team', label: t.nav.careTeam, icon: '👥' },
     { path: '/health', label: t.nav.health, icon: '🩺' },
     { path: '/emergency', label: t.nav.emergency, icon: '🚨' },
     { path: '/shopping', label: t.nav.shopping, icon: '🛍️' },

@@ -1,17 +1,19 @@
 /* eslint-disable react/prop-types */
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 // Order the "e-mark" arrows page through – mirrors the header tab order.
+// `labelKey` maps into t.nav so the arrow tooltips follow the selected language.
 const PAGER_ROUTES = [
-  { path: '/', label: 'Home' },
-  { path: '/pregnancy', label: 'Tracker' },
-  { path: '/appointments', label: 'Appointments' },
-  { path: '/care-team', label: 'Care Team' },
-  { path: '/health', label: 'Health' },
-  { path: '/emergency', label: 'Emergency' },
-  { path: '/shopping', label: 'Shopping' },
-  { path: '/wellbeing', label: 'Wellbeing' },
+  { path: '/', labelKey: 'home' },
+  { path: '/pregnancy', labelKey: 'tracker' },
+  { path: '/appointments', labelKey: 'appointments' },
+  { path: '/care-team', labelKey: 'careTeam' },
+  { path: '/health', labelKey: 'health' },
+  { path: '/emergency', labelKey: 'emergency' },
+  { path: '/shopping', labelKey: 'shopping' },
+  { path: '/wellbeing', labelKey: 'wellbeing' },
 ];
 
 const ArrowGlyph = ({ className = '' }) => (
@@ -49,6 +51,7 @@ const SidePager = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   // Match FloatingAssistantBot: hide on auth pages and for signed-out / admin users.
   if (
@@ -74,7 +77,7 @@ const SidePager = () => {
           direction="left"
           side="left"
           onClick={() => navigate(prev.path)}
-          label={`Go to ${prev.label}`}
+          label={t.nav[prev.labelKey]}
         />
       </div>
       <div className="pointer-events-none fixed right-1 top-1/2 z-[70] -translate-y-1/2 sm:right-3">
@@ -82,7 +85,7 @@ const SidePager = () => {
           direction="right"
           side="right"
           onClick={() => navigate(next.path)}
-          label={`Go to ${next.label}`}
+          label={t.nav[next.labelKey]}
         />
       </div>
     </>
