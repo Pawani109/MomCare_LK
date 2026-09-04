@@ -7,11 +7,14 @@ const FloatingAssistantBot = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Do not display the assistant on authentication pages
+    // Do not display the assistant on authentication pages, and never for the
+    // super admin (the admin portal has no need for the care assistant).
     if (
         !user ||
+        user.role === "super_admin" ||
         location.pathname === "/login" ||
-        location.pathname === "/register"
+        location.pathname === "/register" ||
+        location.pathname === "/forgot-password"
     ) {
         return null;
     }

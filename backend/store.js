@@ -98,16 +98,28 @@ async function findFamilyByCode(code) {
   return rows[0] || null;
 }
 
-// A new mother gets a fresh family. The family_code (MC-####) is derived from the
-// row id, so insert a placeholder, then update it once the id is known.
+// A new mother gets a fresh family with a short unique invitation code
+// (e.g. 'MC-7QK4P2'). family_code is VARCHAR(20) UNIQUE, so we retry on the
+// rare chance of a collision.
+function randomFamilyCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+  let suffix = '';
+  for (let i = 0; i < 6; i += 1) suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return `MC-${suffix}`;
+}
+
 async function createFamilyForMom() {
-  const [result] = await pool.execute('INSERT INTO families (family_code) VALUES (?)', [
-    `TMP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-  ]);
-  const id = result.insertId;
-  const familyCode = `MC-${1000 + id}`;
-  await query('UPDATE families SET family_code = ? WHERE id = ?', [familyCode, id]);
-  return { id, family_code: familyCode };
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const familyCode = randomFamilyCode();
+    try {
+      const [result] = await pool.execute('INSERT INTO families (family_code) VALUES (?)', [familyCode]);
+      return { id: result.insertId, family_code: familyCode };
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') continue;
+      throw error;
+    }
+  }
+  throw new Error('Could not generate a unique family code, please try again');
 }
 
 // ---------------------------------------------------------------------------
