@@ -4,7 +4,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "seed": "node seed.js"
   },
   "description": "MomCare LK REST API (Express)",
   "dependencies": {
@@ -14,6 +15,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "mysql2": "^3.24.3",
     "textlk-node": "^1.0.1",
     "twilio": "^6.0.2"
   }

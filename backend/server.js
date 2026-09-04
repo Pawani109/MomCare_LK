@@ -61,23 +61,15 @@ const upload = multer({
   },
 });
 
+const db = require('./db');
+const store = require('./store');
+
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'momcare-lk-demo-secret';
 
-// ---- In-memory demo data (will be replaced by a real database later) ----
-
-const demoUser = {
-  id: 1,
-  familyId: 1,
-  name: 'Nimasha Perera',
-  role: 'mom',
-  dueDate: '2026-11-20',
-  pregnancyStartDate: '2026-02-13',
-};
-
-let pregnancyProfiles = [
-  { familyId: 1, momUserId: 1, lmpDate: '2026-02-13' },
-];
+// ---- Persistent data lives in MySQL (see db.js / store.js): families, users,
+// ---- pregnancy_profiles, health_records, health_record_comments.
+// ---- The collections below have no table yet and remain in memory.
 
 let appointments = [
   { id: 1, familyId: 1, createdBy: 1, hospital: 'MOH Office Nugegoda', doctor: 'Dr. Silva', date: '2026-07-30', time: '09:00', type: 'Routine antenatal clinic', notes: 'Bring clinic book and previous reports', reminderEnabled: true, completed: false },
@@ -88,14 +80,6 @@ let reminders = [
   { id: 1, familyId: 1, title: 'Clinic visit – MOH Office Nugegoda', date: '2026-07-30', time: '09:00', done: false },
   { id: 2, familyId: 1, title: 'Blood test – Full blood count', date: '2026-08-05', time: '08:30', done: false },
   { id: 3, familyId: 1, title: 'Ultrasound scan (anomaly scan)', date: '2026-08-12', time: '10:00', done: false },
-];
-
-let healthRecords = [
-  { id: 1, familyId: 1, createdBy: 1, type: 'weight', date: '2026-07-10', value: 61.5, unit: 'kg', notes: 'Feeling good', createdAt: '2026-07-10T08:00:00Z' },
-  { id: 2, familyId: 1, createdBy: 1, type: 'blood_pressure', date: '2026-07-17', systolic: 114, diastolic: 75, pulse: 78, notes: 'Measured after resting', createdAt: '2026-07-17T08:00:00Z' },
-];
-let healthRecordComments = [
-  { id: 80, familyId: 1, recordId: 2, authorId: 3, authorName: 'Dr. Silva', authorRole: 'doctor', text: 'This reading is within the expected range. Continue monitoring at the same time of day.', createdAt: '2026-07-17T10:00:00Z' },
 ];
 
 let forumPosts = [
@@ -130,56 +114,6 @@ let nextId = 100;
 
 // ---- Auth ----
 
-const users = [
-  {
-    id: 1,
-    name: 'Nimasha Perera',
-    email: 'mom@momcare.lk',
-    passwordHash: bcrypt.hashSync('mom123', 10),
-    role: 'mom',
-    familyId: 1,
-    familyCode: 'MC-1001',
-    active: true,
-    createdAt: '2026-07-01T08:00:00Z',
-    lastLoginAt: null,
-  },
-  {
-    id: 2,
-    name: 'Kasun Perera',
-    email: 'partner@momcare.lk',
-    passwordHash: bcrypt.hashSync('partner123', 10),
-    role: 'partner',
-    familyId: 1,
-    active: true,
-    createdAt: '2026-07-01T08:10:00Z',
-    lastLoginAt: null,
-  },
-  {
-    id: 3,
-    name: 'Dr. Silva',
-    email: 'doctor@momcare.lk',
-    passwordHash: bcrypt.hashSync('doctor123', 10),
-    role: 'doctor',
-    familyId: 1,
-    active: true,
-    createdAt: '2026-07-01T08:20:00Z',
-    lastLoginAt: null,
-  },
-  {
-    id: 4,
-    name: 'MomCare Super Admin',
-    email: 'admin@momcare.lk',
-    passwordHash: bcrypt.hashSync('admin123', 10),
-    role: 'super_admin',
-    familyId: null,
-    active: true,
-    createdAt: '2026-07-01T07:30:00Z',
-    lastLoginAt: null,
-  },
-];
-let nextUserId = 5;
-let nextFamilyId = 2;
-
 function makeToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, familyId: user.familyId }, JWT_SECRET, { expiresIn: '7d' });
 }
@@ -188,28 +122,35 @@ function publicUser(user) {
   return { id: user.id, name: user.name, email: user.email, role: user.role, familyId: user.familyId, familyCode: user.role === 'mom' ? user.familyCode : undefined, active: user.active !== false, createdAt: user.createdAt, lastLoginAt: user.lastLoginAt || null };
 }
 
-app.post('/api/auth/register', (req, res) => {
+// Wrap an async route handler so rejected promises become a 500 instead of an
+// unhandled rejection.
+function asyncRoute(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const { name, email, password, role, familyCode } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'Name, email and password are required' });
   if (!['mom', 'partner', 'doctor'].includes(role)) return res.status(400).json({ error: 'Role must be mom, partner or doctor/midwife' });
-  if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'An account with this email already exists' });
+  if (await store.emailExists(email)) return res.status(409).json({ error: 'An account with this email already exists' });
 
   let familyId;
-  let generatedFamilyCode;
   if (role === 'mom') {
-    familyId = nextFamilyId++;
-    generatedFamilyCode = `MC-${String(1000 + familyId)}`;
+    const family = await store.createFamilyForMom();
+    familyId = family.id;
   } else {
-    const familyMom = users.find((u) => u.role === 'mom' && u.familyCode === String(familyCode || '').trim().toUpperCase());
-    if (!familyMom) return res.status(400).json({ error: 'A valid family invitation code from the mother is required' });
-    familyId = familyMom.familyId;
+    const family = await store.findFamilyByCode(String(familyCode || '').trim().toUpperCase());
+    if (!family) return res.status(400).json({ error: 'A valid family invitation code from the mother is required' });
+    familyId = family.id;
   }
 
-  const user = { id: nextUserId++, name, email, passwordHash: bcrypt.hashSync(password, 10), role, familyId, active: true, createdAt: new Date().toISOString(), lastLoginAt: null, ...(generatedFamilyCode ? { familyCode: generatedFamilyCode } : {}) };
-  users.push(user);
-  if (role === 'mom') pregnancyProfiles.push({ familyId, momUserId: user.id, lmpDate: new Date().toISOString().slice(0, 10) });
+  const passwordHash = bcrypt.hashSync(password, 10);
+  const user = await store.createUser({ name, email, passwordHash, role, familyId });
+  if (role === 'mom') {
+    await store.upsertPregnancy(familyId, user.id, new Date().toISOString().slice(0, 10));
+  }
   res.status(201).json({ token: makeToken(user), user: publicUser(user) });
-});
+}));
 
 
 // ---- Password reset flow with EmailJS OTP delivery ----
@@ -259,7 +200,7 @@ async function sendPasswordResetOtpEmail({ email, passcode, expiresAt }) {
 
 app.post('/api/auth/forgot-password', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
-  const user = users.find((u) => u.email.toLowerCase() === email);
+  const user = await store.findUserByEmail(email);
   if (!user) return res.status(404).json({ error: 'No MomCare account was found with that email address' });
   if (user.active === false) return res.status(403).json({ error: 'This account has been deactivated. Please contact the MomCare administrator.' });
 
@@ -318,51 +259,54 @@ app.post('/api/auth/verify-reset-code', (req, res) => {
   res.json({ message: 'Code verified', resetToken });
 });
 
-app.post('/api/auth/reset-password', (req, res) => {
+app.post('/api/auth/reset-password', asyncRoute(async (req, res) => {
   const resetToken = String(req.body.resetToken || '');
   const password = String(req.body.password || '');
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long' });
 
+  let payload;
   try {
-    const payload = jwt.verify(resetToken, JWT_SECRET);
-    if (payload.purpose !== 'password-reset') return res.status(400).json({ error: 'Invalid password reset token' });
-    const request = passwordResetRequests.get(String(payload.email).toLowerCase());
-    if (!request || !request.verified || request.resetToken !== resetToken) return res.status(400).json({ error: 'Password reset session is no longer valid' });
-    const user = users.find((u) => u.id === payload.userId);
-    if (!user) return res.status(404).json({ error: 'Account not found' });
-
-    user.passwordHash = bcrypt.hashSync(password, 10);
-    passwordResetRequests.delete(String(payload.email).toLowerCase());
-    res.json({ message: 'Password updated successfully' });
+    payload = jwt.verify(resetToken, JWT_SECRET);
   } catch {
-    res.status(400).json({ error: 'Password reset session has expired. Please start again.' });
+    return res.status(400).json({ error: 'Password reset session has expired. Please start again.' });
   }
-});
+  if (payload.purpose !== 'password-reset') return res.status(400).json({ error: 'Invalid password reset token' });
+  const request = passwordResetRequests.get(String(payload.email).toLowerCase());
+  if (!request || !request.verified || request.resetToken !== resetToken) return res.status(400).json({ error: 'Password reset session is no longer valid' });
+  const user = await store.findUserById(payload.userId);
+  if (!user) return res.status(404).json({ error: 'Account not found' });
 
-app.post('/api/auth/login', (req, res) => {
+  await store.updateUserPassword(user.id, bcrypt.hashSync(password, 10));
+  passwordResetRequests.delete(String(payload.email).toLowerCase());
+  res.json({ message: 'Password updated successfully' });
+}));
+
+app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const { email, password } = req.body;
-  const user = users.find((u) => u.email.toLowerCase() === (email || '').toLowerCase());
+  const user = await store.findUserByEmail(email || '');
   if (!user || !bcrypt.compareSync(password || '', user.passwordHash)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
   if (user.active === false) return res.status(403).json({ error: 'This account has been deactivated. Please contact the MomCare administrator.' });
+  await store.touchLastLogin(user.id);
   user.lastLoginAt = new Date().toISOString();
   res.json({ token: makeToken(user), user: publicUser(user) });
-});
+}));
 
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', asyncRoute(async (req, res) => {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Not logged in' });
+  let payload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    const stored = users.find((u) => u.id === payload.id);
-    if (stored && stored.active === false) return res.status(403).json({ error: 'This account has been deactivated' });
-    res.json({ user: stored ? publicUser(stored) : { id: payload.id, name: payload.name, email: payload.email, role: payload.role, familyId: payload.familyId } });
+    payload = jwt.verify(token, JWT_SECRET);
   } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
-});
+  const stored = await store.findUserById(payload.id);
+  if (stored && stored.active === false) return res.status(403).json({ error: 'This account has been deactivated' });
+  res.json({ user: stored ? publicUser(stored) : { id: payload.id, name: payload.name, email: payload.email, role: payload.role, familyId: payload.familyId } });
+}));
 
 
 function getAuthUser(req) {
@@ -376,14 +320,18 @@ function getAuthUser(req) {
   }
 }
 
-function requireAuth(req, res, next) {
-  const tokenUser = getAuthUser(req);
-  if (!tokenUser) return res.status(401).json({ error: 'Please log in to continue' });
-  const stored = users.find((u) => u.id === tokenUser.id);
-  if (!stored) return res.status(401).json({ error: 'Account no longer exists' });
-  if (stored.active === false) return res.status(403).json({ error: 'This account has been deactivated' });
-  req.user = { ...tokenUser, ...publicUser(stored) };
-  next();
+async function requireAuth(req, res, next) {
+  try {
+    const tokenUser = getAuthUser(req);
+    if (!tokenUser) return res.status(401).json({ error: 'Please log in to continue' });
+    const stored = await store.findUserById(tokenUser.id);
+    if (!stored) return res.status(401).json({ error: 'Account no longer exists' });
+    if (stored.active === false) return res.status(403).json({ error: 'This account has been deactivated' });
+    req.user = { ...tokenUser, ...publicUser(stored) };
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 
@@ -395,7 +343,7 @@ function requireRole(...roles) {
 }
 
 function familyMom(req) {
-  return users.find((u) => u.familyId === req.user.familyId && u.role === 'mom');
+  return store.findFamilyMom(req.user.familyId);
 }
 
 const permissionsByRole = {
@@ -437,37 +385,45 @@ function contentForWeek(week) {
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'MomCare LK API' }));
 
-app.get('/api/access', requireAuth, (req, res) => {
-  const members = users.filter((u) => u.familyId === req.user.familyId).map(publicUser);
-  res.json({ role: req.user.role, permissions: permissionsByRole[req.user.role], members, familyCode: familyMom(req)?.familyCode });
-});
+app.get('/api/access', requireAuth, asyncRoute(async (req, res) => {
+  const members = (await store.listFamilyMembers(req.user.familyId)).map(publicUser);
+  const mom = await familyMom(req);
+  res.json({ role: req.user.role, permissions: permissionsByRole[req.user.role], members, familyCode: mom?.familyCode });
+}));
 
-app.get('/api/profile', requireAuth, (req, res) => {
-  const mom = familyMom(req);
-  const profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
+app.get('/api/profile', requireAuth, asyncRoute(async (req, res) => {
+  const mom = await familyMom(req);
+  const profile = await store.findPregnancyByFamily(req.user.familyId);
   if (!mom || !profile) return res.status(404).json({ error: 'Mother profile not found for this family' });
   const summary = pregnancySummary(profile.lmpDate);
-  res.json({ ...demoUser, id: mom.id, name: mom.name, familyId: req.user.familyId, viewerRole: req.user.role, emergencyContacts: emergencyContacts.filter((c) => c.familyId === req.user.familyId && c.active).sort((a, b) => a.priority - b.priority), ...summary });
-});
+  res.json({
+    id: mom.id,
+    name: mom.name,
+    role: 'mom',
+    familyId: req.user.familyId,
+    viewerRole: req.user.role,
+    pregnancyStartDate: profile.lmpDate,
+    emergencyContacts: emergencyContacts.filter((c) => c.familyId === req.user.familyId && c.active).sort((a, b) => a.priority - b.priority),
+    ...summary,
+  });
+}));
 
-app.get('/api/pregnancy', requireAuth, (req, res) => {
-  const profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
+app.get('/api/pregnancy', requireAuth, asyncRoute(async (req, res) => {
+  const profile = await store.findPregnancyByFamily(req.user.familyId);
   if (!profile) return res.status(404).json({ error: 'Pregnancy profile not found' });
   const summary = pregnancySummary(profile.lmpDate);
   res.json({ ...summary, canEdit: req.user.role === 'mom', weekInfo: contentForWeek(summary.currentWeek) });
-});
+}));
 
-app.put('/api/pregnancy', requireAuth, requireRole('mom'), (req, res) => {
+app.put('/api/pregnancy', requireAuth, requireRole('mom'), asyncRoute(async (req, res) => {
   const { lmpDate } = req.body;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(lmpDate || '')) return res.status(400).json({ error: 'A valid LMP date is required' });
   const parsed = new Date(`${lmpDate}T00:00:00`);
   if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return res.status(400).json({ error: 'LMP date cannot be in the future' });
-  let profile = pregnancyProfiles.find((item) => item.familyId === req.user.familyId);
-  if (profile) profile.lmpDate = lmpDate;
-  else { profile = { familyId: req.user.familyId, momUserId: req.user.id, lmpDate }; pregnancyProfiles.push(profile); }
+  await store.upsertPregnancy(req.user.familyId, req.user.id, lmpDate);
   const summary = pregnancySummary(lmpDate);
   res.json({ ...summary, canEdit: true, weekInfo: contentForWeek(summary.currentWeek) });
-});
+}));
 
 app.get('/api/pregnancy/weeks/:week', requireAuth, (req, res) => {
   const week = Number(req.params.week);
@@ -541,78 +497,98 @@ function validateHealthRecord(body, file, partial = false) {
   return null;
 }
 
-function serializeRecord(record) {
-  return { ...record, comments: healthRecordComments.filter((c) => c.recordId === record.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
+function serializeRecord(record, commentsByRecord) {
+  return { ...record, comments: commentsByRecord.get(record.id) || [] };
 }
 
-app.get('/api/records', requireAuth, (req, res) => {
-  res.json(healthRecords.filter((r) => r.familyId === req.user.familyId).sort((a, b) => b.date.localeCompare(a.date)).map(serializeRecord));
-});
+async function recordWithComments(record) {
+  return { ...record, comments: await store.listCommentsByRecord(record.id) };
+}
 
-app.post('/api/records', requireAuth, requireRole('mom'), upload.single('file'), (req, res) => {
+app.get('/api/records', requireAuth, asyncRoute(async (req, res) => {
+  const [records, comments] = await Promise.all([
+    store.listRecordsByFamily(req.user.familyId),
+    store.listCommentsByFamily(req.user.familyId),
+  ]);
+  const commentsByRecord = new Map();
+  for (const comment of comments) {
+    if (!commentsByRecord.has(comment.recordId)) commentsByRecord.set(comment.recordId, []);
+    commentsByRecord.get(comment.recordId).push(comment);
+  }
+  res.json(records.map((record) => serializeRecord(record, commentsByRecord)));
+}));
+
+app.post('/api/records', requireAuth, requireRole('mom'), upload.single('file'), asyncRoute(async (req, res) => {
   const error = validateHealthRecord(req.body, req.file);
   if (error) { if (req.file) fs.unlink(req.file.path, () => { }); return res.status(400).json({ error }); }
   const type = req.body.type;
-  const record = { id: nextId++, familyId: req.user.familyId, createdBy: req.user.id, type, date: req.body.date, notes: String(req.body.notes || '').trim(), createdAt: new Date().toISOString() };
-  if (type === 'weight') Object.assign(record, { value: Number(req.body.value), unit: 'kg' });
-  if (type === 'blood_pressure') Object.assign(record, { systolic: Number(req.body.systolic), diastolic: Number(req.body.diastolic), pulse: req.body.pulse ? Number(req.body.pulse) : null });
-  if (type === 'scan_report') Object.assign(record, { title: String(req.body.title || 'Scan report').trim(), scanType: String(req.body.scanType || 'Other').trim(), fileName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, fileSize: req.file.size });
-  healthRecords.push(record);
-  res.status(201).json(serializeRecord(record));
-});
+  const data = { familyId: req.user.familyId, createdBy: req.user.id, type, date: req.body.date, notes: String(req.body.notes || '').trim() };
+  if (type === 'weight') Object.assign(data, { value: Number(req.body.value), unit: 'kg' });
+  if (type === 'blood_pressure') Object.assign(data, { systolic: Number(req.body.systolic), diastolic: Number(req.body.diastolic), pulse: req.body.pulse ? Number(req.body.pulse) : null });
+  if (type === 'scan_report') Object.assign(data, { title: String(req.body.title || 'Scan report').trim(), scanType: String(req.body.scanType || 'Other').trim(), fileName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, fileSize: req.file.size });
+  const record = await store.createRecord(data);
+  res.status(201).json(await recordWithComments(record));
+}));
 
-app.put('/api/records/:id', requireAuth, requireRole('mom'), upload.single('file'), (req, res) => {
-  const record = healthRecords.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
+app.put('/api/records/:id', requireAuth, requireRole('mom'), upload.single('file'), asyncRoute(async (req, res) => {
+  const record = await store.findRecord(Number(req.params.id), req.user.familyId);
   if (!record) { if (req.file) fs.unlink(req.file.path, () => { }); return res.status(404).json({ error: 'Health record not found' }); }
   const body = { ...req.body, type: record.type };
   const error = validateHealthRecord(body, req.file, true);
   if (error) { if (req.file) fs.unlink(req.file.path, () => { }); return res.status(400).json({ error }); }
-  if (req.body.date) record.date = req.body.date;
-  if ('notes' in req.body) record.notes = String(req.body.notes || '').trim();
-  if (record.type === 'weight' && req.body.value) record.value = Number(req.body.value);
+
+  const fields = {};
+  if (req.body.date) fields.date = req.body.date;
+  if ('notes' in req.body) fields.notes = String(req.body.notes || '').trim();
+  if (record.type === 'weight' && req.body.value) fields.value = Number(req.body.value);
   if (record.type === 'blood_pressure') {
-    if (req.body.systolic) record.systolic = Number(req.body.systolic);
-    if (req.body.diastolic) record.diastolic = Number(req.body.diastolic);
-    if ('pulse' in req.body) record.pulse = req.body.pulse ? Number(req.body.pulse) : null;
+    if (req.body.systolic) fields.systolic = Number(req.body.systolic);
+    if (req.body.diastolic) fields.diastolic = Number(req.body.diastolic);
+    if ('pulse' in req.body) fields.pulse = req.body.pulse ? Number(req.body.pulse) : null;
   }
   if (record.type === 'scan_report') {
-    if ('title' in req.body) record.title = String(req.body.title || 'Scan report').trim();
-    if ('scanType' in req.body) record.scanType = String(req.body.scanType || 'Other').trim();
+    if ('title' in req.body) fields.title = String(req.body.title || 'Scan report').trim();
+    if ('scanType' in req.body) fields.scanType = String(req.body.scanType || 'Other').trim();
     if (req.file) {
       if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => { });
-      Object.assign(record, { fileName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, fileSize: req.file.size });
+      Object.assign(fields, { fileName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, fileSize: req.file.size });
     }
   }
-  record.updatedAt = new Date().toISOString();
-  res.json(serializeRecord(record));
-});
+  const updated = await store.updateRecord(record.id, fields);
+  res.json(await recordWithComments(updated));
+}));
 
-app.delete('/api/records/:id', requireAuth, requireRole('mom'), (req, res) => {
-  const index = healthRecords.findIndex((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
-  if (index < 0) return res.status(404).json({ error: 'Health record not found' });
-  const [record] = healthRecords.splice(index, 1);
+app.delete('/api/records/:id', requireAuth, requireRole('mom'), asyncRoute(async (req, res) => {
+  const record = await store.findRecord(Number(req.params.id), req.user.familyId);
+  if (!record) return res.status(404).json({ error: 'Health record not found' });
+  await store.deleteRecord(record.id); // comments cascade in the database
   if (record.storedName) fs.unlink(path.join(uploadsDir, record.storedName), () => { });
-  healthRecordComments = healthRecordComments.filter((c) => c.recordId !== record.id);
   res.json({ message: 'Health record deleted' });
-});
+}));
 
-app.get('/api/records/:id/file', requireAuth, (req, res) => {
-  const record = healthRecords.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId && r.type === 'scan_report');
+app.get('/api/records/:id/file', requireAuth, asyncRoute(async (req, res) => {
+  const record = await store.findScanRecord(Number(req.params.id), req.user.familyId);
   if (!record) return res.status(404).json({ error: 'Scan report not found' });
   const filePath = path.join(uploadsDir, record.storedName);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Stored file is missing' });
   res.type(record.mimeType); res.setHeader('Content-Disposition', `inline; filename="${record.fileName.replace(/"/g, '')}"`); res.sendFile(filePath);
-});
+}));
 
-app.post('/api/records/:id/comments', requireAuth, (req, res) => {
-  const record = healthRecords.find((r) => r.id === Number(req.params.id) && r.familyId === req.user.familyId);
+app.post('/api/records/:id/comments', requireAuth, asyncRoute(async (req, res) => {
+  const record = await store.findRecord(Number(req.params.id), req.user.familyId);
   if (!record) return res.status(404).json({ error: 'Health record not found' });
   const text = String(req.body.text || '').trim();
   if (!text) return res.status(400).json({ error: 'Comment is required' });
-  const comment = { id: nextId++, familyId: req.user.familyId, recordId: record.id, authorId: req.user.id, authorName: req.user.name, authorRole: req.user.role, text, createdAt: new Date().toISOString() };
-  healthRecordComments.push(comment);
+  const comment = await store.createRecordComment({
+    recordId: record.id,
+    familyId: req.user.familyId,
+    authorId: req.user.id,
+    authorName: req.user.name,
+    authorRole: req.user.role,
+    text,
+  });
   res.status(201).json(comment);
-});
+}));
 
 function forumPostView(post, viewer) {
   const replies = (post.replies || []).filter((r) => !r.removed).map((r) => ({
@@ -1167,14 +1143,15 @@ app.get('/api/places/nearby', requireAuth, async (req, res) => {
 // To protect maternal privacy, these endpoints return counts and profile metadata,
 // not the contents of private notes, scan files, mood entries, or medical comments.
 
-function adminFamilyRow(mom) {
+function adminFamilyRow(mom, context) {
   const familyId = mom.familyId;
-  const profile = pregnancyProfiles.find((p) => p.familyId === familyId);
-  const partner = users.find((u) => u.familyId === familyId && u.role === 'partner');
-  const doctor = users.find((u) => u.familyId === familyId && u.role === 'doctor');
+  const profile = context.pregnancies.find((p) => p.familyId === familyId);
+  const members = context.usersByFamily.get(familyId) || [];
+  const partner = members.find((u) => u.role === 'partner');
+  const doctor = members.find((u) => u.role === 'doctor');
   const pregnancy = profile ? pregnancySummary(profile.lmpDate) : null;
   const familyAppointments = appointments.filter((a) => a.familyId === familyId);
-  const familyRecords = healthRecords.filter((r) => r.familyId === familyId);
+  const familyRecordCounts = context.recordCounts.get(familyId) || { total: 0, scans: 0 };
   const activeEmergencyContacts = emergencyContacts.filter((c) => c.familyId === familyId && c.active);
   const familySos = sosEvents.filter((e) => e.familyId === familyId);
 
@@ -1215,52 +1192,65 @@ function adminFamilyRow(mom) {
     counts: {
       appointments: familyAppointments.length,
       upcomingAppointments: familyAppointments.filter((a) => !a.completed && new Date(`${a.date}T${a.time || '00:00'}`) >= new Date()).length,
-      healthRecords: familyRecords.length,
-      scanReports: familyRecords.filter((r) => r.type === 'scan_report').length,
+      healthRecords: familyRecordCounts.total,
+      scanReports: familyRecordCounts.scans,
       emergencyContacts: activeEmergencyContacts.length,
       sosEvents: familySos.length,
     },
   };
 }
 
-app.get('/api/admin/dashboard', requireAuth, requireRole('super_admin'), (req, res) => {
-  const mothers = users.filter((u) => u.role === 'mom');
-  const families = mothers.map(adminFamilyRow);
-  const nonAdminUsers = users.filter((u) => u.role !== 'super_admin');
+app.get('/api/admin/dashboard', requireAuth, requireRole('super_admin'), asyncRoute(async (req, res) => {
+  const [managedUsers, pregnancies, recordCounts, totalHealthRecords] = await Promise.all([
+    store.listManagedUsers(),
+    store.listAllPregnancies(),
+    store.healthRecordCountsByFamily(),
+    store.totalHealthRecords(),
+  ]);
+
+  const usersByFamily = new Map();
+  for (const u of managedUsers) {
+    if (u.familyId == null) continue;
+    if (!usersByFamily.has(u.familyId)) usersByFamily.set(u.familyId, []);
+    usersByFamily.get(u.familyId).push(u);
+  }
+
+  const mothers = managedUsers.filter((u) => u.role === 'mom');
+  const context = { pregnancies, usersByFamily, recordCounts };
+  const families = mothers.map((mom) => adminFamilyRow(mom, context));
+
   res.json({
     generatedAt: new Date().toISOString(),
     metrics: {
       totalFamilies: families.length,
       totalMothers: mothers.length,
       activeMothers: mothers.filter((u) => u.active !== false).length,
-      partners: users.filter((u) => u.role === 'partner').length,
-      activePartners: users.filter((u) => u.role === 'partner' && u.active !== false).length,
-      doctors: users.filter((u) => u.role === 'doctor').length,
-      activeDoctors: users.filter((u) => u.role === 'doctor' && u.active !== false).length,
-      totalUsers: nonAdminUsers.length,
-      activeUsers: nonAdminUsers.filter((u) => u.active !== false).length,
+      partners: managedUsers.filter((u) => u.role === 'partner').length,
+      activePartners: managedUsers.filter((u) => u.role === 'partner' && u.active !== false).length,
+      doctors: managedUsers.filter((u) => u.role === 'doctor').length,
+      activeDoctors: managedUsers.filter((u) => u.role === 'doctor' && u.active !== false).length,
+      totalUsers: managedUsers.length,
+      activeUsers: managedUsers.filter((u) => u.active !== false).length,
       totalAppointments: appointments.length,
-      totalHealthRecords: healthRecords.length,
+      totalHealthRecords,
       totalSosEvents: sosEvents.length,
       forumPosts: forumPosts.filter((p) => !p.removed).length,
     },
     families,
   });
-});
+}));
 
-app.get('/api/admin/users', requireAuth, requireRole('super_admin'), (req, res) => {
-  res.json(users.filter((u) => u.role !== 'super_admin').map(publicUser));
-});
+app.get('/api/admin/users', requireAuth, requireRole('super_admin'), asyncRoute(async (req, res) => {
+  res.json((await store.listManagedUsers()).map(publicUser));
+}));
 
-app.patch('/api/admin/users/:id/status', requireAuth, requireRole('super_admin'), (req, res) => {
-  const target = users.find((u) => u.id === Number(req.params.id));
+app.patch('/api/admin/users/:id/status', requireAuth, requireRole('super_admin'), asyncRoute(async (req, res) => {
+  const target = await store.findUserById(Number(req.params.id));
   if (!target || target.role === 'super_admin') return res.status(404).json({ error: 'Managed account not found' });
   if (typeof req.body.active !== 'boolean') return res.status(400).json({ error: 'active must be true or false' });
-  target.active = req.body.active;
-  target.statusUpdatedAt = new Date().toISOString();
-  target.statusUpdatedBy = req.user.id;
-  res.json({ message: target.active ? 'Account activated' : 'Account deactivated', user: publicUser(target) });
-});
+  const updated = await store.setUserActive(target.id, req.body.active);
+  res.json({ message: updated.active ? 'Account activated' : 'Account deactivated', user: publicUser(updated) });
+}));
 
 // ---- Caring AI Assistant (powered by Groq) ----
 app.post('/api/assistant', requireAuth, async (req, res) => {
@@ -1334,9 +1324,24 @@ Current user: ${req.user.name} (${req.user.role})`;
 
 app.use((err, _req, res, _next) => {
   if (err instanceof multer.MulterError) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Scan report mustbe 8 MB or smaller' : err.message });
-  if (err) return res.status(400).json({ error: err.message || 'Request could not be processed' });
+  // Database / driver failures should not surface as a 400 with a raw SQL message.
+  if (err && (err.sqlState || String(err.code || '').startsWith('ER_') || String(err.code || '').startsWith('ECONN'))) {
+    console.error('Database error:', err.message);
+    return res.status(500).json({ error: 'A database error occurred. Please try again.' });
+  }
+  if (err) {
+    console.error('Request error:', err.message);
+    return res.status(400).json({ error: err.message || 'Request could not be processed' });
+  }
   return res.status(500).json({ error: 'Unexpected server error' });
 });
+
+db.assertConnection()
+  .then(() => console.log(`Connected to MySQL database "${process.env.DB_NAME || 'momcare'}"`))
+  .catch((error) => {
+    console.error('WARNING: could not connect to MySQL —', error.message);
+    console.error('Check DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME in backend/.env');
+  });
 
 app.listen(PORT, () => console.log(`MomCare LK API running on http://localhost:${PORT}`));
 
