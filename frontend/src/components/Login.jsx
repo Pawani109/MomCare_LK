@@ -89,14 +89,6 @@ const Login = () => {
             <p className="text-center text-sm text-gray-500">
               {t.noAccount} <Link to="/register" className="font-bold text-pink-600 hover:text-pink-700">{t.register}</Link>
             </p>
-
-            <div className="mt-6 rounded-2xl border border-purple-100 bg-purple-50/70 p-4 text-xs leading-5 text-gray-600">
-              <p className="mb-1 font-bold text-purple-600">{t.demoAccounts}:</p>
-              <p>👩 mom@momcare.lk / mom123</p>
-              <p>🧑 partner@momcare.lk / partner123</p>
-              <p>🩺 doctor@momcare.lk / doctor123</p>
-              <p>🛡️ admin@momcare.lk / admin123</p>
-            </div>
           </div>
         </div>
       </div>

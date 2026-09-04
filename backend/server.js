@@ -68,13 +68,8 @@ const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'momcare-lk-demo-secret';
 
 // ---- Persistent data lives in MySQL (see db.js / store.js): families, users,
-// ---- pregnancy_profiles, health_records, health_record_comments.
+// ---- pregnancy_profiles, health_records, health_record_comments, appointments.
 // ---- The collections below have no table yet and remain in memory.
-
-let appointments = [
-  { id: 1, familyId: 1, createdBy: 1, hospital: 'MOH Office Nugegoda', doctor: 'Dr. Silva', date: '2026-07-30', time: '09:00', type: 'Routine antenatal clinic', notes: 'Bring clinic book and previous reports', reminderEnabled: true, completed: false },
-  { id: 2, familyId: 1, createdBy: 1, hospital: 'Castle Street Hospital for Women', doctor: 'Dr. Perera', date: '2026-08-12', time: '10:00', type: 'Ultrasound scan', notes: 'Anomaly scan appointment', reminderEnabled: true, completed: false },
-];
 
 let reminders = [
   { id: 1, familyId: 1, title: 'Clinic visit – MOH Office Nugegoda', date: '2026-07-30', time: '09:00', done: false },
@@ -383,7 +378,15 @@ function contentForWeek(week) {
 
 // ---- Routes ----
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'MomCare LK API' }));
+app.get('/api/health', async (req, res) => {
+  let database = 'ok';
+  try {
+    await db.assertConnection();
+  } catch (error) {
+    database = `unavailable: ${error.code || error.message}`;
+  }
+  res.status(database === 'ok' ? 200 : 503).json({ status: database === 'ok' ? 'ok' : 'degraded', service: 'MomCare LK API', database });
+});
 
 app.get('/api/access', requireAuth, asyncRoute(async (req, res) => {
   const members = (await store.listFamilyMembers(req.user.familyId)).map(publicUser);
@@ -431,32 +434,41 @@ app.get('/api/pregnancy/weeks/:week', requireAuth, (req, res) => {
   res.json({ week, ...contentForWeek(week) });
 });
 
-app.get('/api/appointments', requireAuth, (req, res) => {
-  res.json(appointments.filter((item) => item.familyId === req.user.familyId).sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)));
-});
+app.get('/api/appointments', requireAuth, asyncRoute(async (req, res) => {
+  res.json(await store.listAppointmentsByFamily(req.user.familyId));
+}));
 
-app.post('/api/appointments', requireAuth, requireRole('mom'), (req, res) => {
+app.post('/api/appointments', requireAuth, requireRole('mom'), asyncRoute(async (req, res) => {
   const { hospital, doctor = '', date, time, type = 'Clinic appointment', notes = '', reminderEnabled = true } = req.body;
   if (!hospital || !date || !time) return res.status(400).json({ error: 'Hospital, date, and time are required' });
-  const appointment = { id: nextId++, familyId: req.user.familyId, createdBy: req.user.id, hospital, doctor, date, time, type, notes, reminderEnabled: Boolean(reminderEnabled), completed: false };
-  appointments.push(appointment);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'A valid date is required' });
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(time)) return res.status(400).json({ error: 'A valid time is required' });
+  const appointment = await store.createAppointment({
+    familyId: req.user.familyId,
+    createdBy: req.user.id,
+    hospital, doctor, date, time, type, notes,
+    reminderEnabled: Boolean(reminderEnabled),
+  });
   res.status(201).json(appointment);
-});
+}));
 
-app.put('/api/appointments/:id', requireAuth, requireRole('mom'), (req, res) => {
-  const appointment = appointments.find((item) => item.id === Number(req.params.id) && item.familyId === req.user.familyId);
+app.put('/api/appointments/:id', requireAuth, requireRole('mom'), asyncRoute(async (req, res) => {
+  const appointment = await store.findAppointment(Number(req.params.id), req.user.familyId);
   if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
   const allowed = ['hospital', 'doctor', 'date', 'time', 'type', 'notes', 'reminderEnabled', 'completed'];
-  allowed.forEach((key) => { if (req.body[key] !== undefined) appointment[key] = req.body[key]; });
-  res.json(appointment);
-});
+  const fields = {};
+  allowed.forEach((key) => { if (req.body[key] !== undefined) fields[key] = req.body[key]; });
+  if (fields.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(fields.date)) return res.status(400).json({ error: 'A valid date is required' });
+  if (fields.time !== undefined && !/^\d{2}:\d{2}(:\d{2})?$/.test(fields.time)) return res.status(400).json({ error: 'A valid time is required' });
+  res.json(await store.updateAppointment(appointment.id, fields));
+}));
 
-app.delete('/api/appointments/:id', requireAuth, requireRole('mom'), (req, res) => {
-  const index = appointments.findIndex((item) => item.id === Number(req.params.id) && item.familyId === req.user.familyId);
-  if (index === -1) return res.status(404).json({ error: 'Appointment not found' });
-  appointments.splice(index, 1);
+app.delete('/api/appointments/:id', requireAuth, requireRole('mom'), asyncRoute(async (req, res) => {
+  const appointment = await store.findAppointment(Number(req.params.id), req.user.familyId);
+  if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+  await store.deleteAppointment(appointment.id);
   res.status(204).send();
-});
+}));
 
 app.get('/api/care-comments', requireAuth, (req, res) => {
   res.json(careComments.filter((item) => item.familyId === req.user.familyId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
@@ -1150,7 +1162,7 @@ function adminFamilyRow(mom, context) {
   const partner = members.find((u) => u.role === 'partner');
   const doctor = members.find((u) => u.role === 'doctor');
   const pregnancy = profile ? pregnancySummary(profile.lmpDate) : null;
-  const familyAppointments = appointments.filter((a) => a.familyId === familyId);
+  const familyAppointments = context.appointments.filter((a) => a.familyId === familyId);
   const familyRecordCounts = context.recordCounts.get(familyId) || { total: 0, scans: 0 };
   const activeEmergencyContacts = emergencyContacts.filter((c) => c.familyId === familyId && c.active);
   const familySos = sosEvents.filter((e) => e.familyId === familyId);
@@ -1201,11 +1213,12 @@ function adminFamilyRow(mom, context) {
 }
 
 app.get('/api/admin/dashboard', requireAuth, requireRole('super_admin'), asyncRoute(async (req, res) => {
-  const [managedUsers, pregnancies, recordCounts, totalHealthRecords] = await Promise.all([
+  const [managedUsers, pregnancies, recordCounts, totalHealthRecords, allAppointments] = await Promise.all([
     store.listManagedUsers(),
     store.listAllPregnancies(),
     store.healthRecordCountsByFamily(),
     store.totalHealthRecords(),
+    store.listAllAppointments(),
   ]);
 
   const usersByFamily = new Map();
@@ -1216,7 +1229,7 @@ app.get('/api/admin/dashboard', requireAuth, requireRole('super_admin'), asyncRo
   }
 
   const mothers = managedUsers.filter((u) => u.role === 'mom');
-  const context = { pregnancies, usersByFamily, recordCounts };
+  const context = { pregnancies, usersByFamily, recordCounts, appointments: allAppointments };
   const families = mothers.map((mom) => adminFamilyRow(mom, context));
 
   res.json({
@@ -1231,7 +1244,7 @@ app.get('/api/admin/dashboard', requireAuth, requireRole('super_admin'), asyncRo
       activeDoctors: managedUsers.filter((u) => u.role === 'doctor' && u.active !== false).length,
       totalUsers: managedUsers.length,
       activeUsers: managedUsers.filter((u) => u.active !== false).length,
-      totalAppointments: appointments.length,
+      totalAppointments: allAppointments.length,
       totalHealthRecords,
       totalSosEvents: sosEvents.length,
       forumPosts: forumPosts.filter((p) => !p.removed).length,

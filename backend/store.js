@@ -75,6 +75,26 @@ function mapRecord(row) {
   return record;
 }
 
+function mapAppointment(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    createdBy: row.created_by,
+    hospital: row.hospital,
+    doctor: row.doctor || '',
+    date: row.date,
+    // MySQL TIME comes back as 'HH:MM:SS'; the UI works with 'HH:MM'.
+    time: typeof row.time === 'string' ? row.time.slice(0, 5) : row.time,
+    type: row.type,
+    notes: row.notes || '',
+    reminderEnabled: row.reminder_enabled !== 0,
+    completed: row.completed !== 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || undefined,
+  };
+}
+
 function mapComment(row) {
   if (!row) return null;
   return {
@@ -311,6 +331,80 @@ async function healthRecordCountsByFamily() {
 }
 
 // ---------------------------------------------------------------------------
+// appointments
+// ---------------------------------------------------------------------------
+
+async function listAppointmentsByFamily(familyId) {
+  const rows = await query(
+    'SELECT * FROM appointments WHERE family_id = ? ORDER BY date ASC, time ASC, id ASC',
+    [familyId],
+  );
+  return rows.map(mapAppointment);
+}
+
+async function listAllAppointments() {
+  const rows = await query('SELECT * FROM appointments');
+  return rows.map(mapAppointment);
+}
+
+async function findAppointment(id, familyId) {
+  const rows = await query('SELECT * FROM appointments WHERE id = ? AND family_id = ? LIMIT 1', [id, familyId]);
+  return mapAppointment(rows[0]);
+}
+
+async function createAppointment(data) {
+  const [result] = await pool.execute(
+    `INSERT INTO appointments (family_id, created_by, hospital, doctor, date, time, type, notes, reminder_enabled, completed)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    [
+      data.familyId, data.createdBy, data.hospital, data.doctor || null,
+      data.date, data.time, data.type || 'Clinic appointment', data.notes || null,
+      data.reminderEnabled ? 1 : 0,
+    ],
+  );
+  const rows = await query('SELECT * FROM appointments WHERE id = ?', [result.insertId]);
+  return mapAppointment(rows[0]);
+}
+
+const APPOINTMENT_UPDATE_COLUMNS = {
+  hospital: 'hospital',
+  doctor: 'doctor',
+  date: 'date',
+  time: 'time',
+  type: 'type',
+  notes: 'notes',
+  reminderEnabled: 'reminder_enabled',
+  completed: 'completed',
+};
+
+async function updateAppointment(id, fields) {
+  const sets = [];
+  const params = [];
+  for (const [key, column] of Object.entries(APPOINTMENT_UPDATE_COLUMNS)) {
+    if (!Object.prototype.hasOwnProperty.call(fields, key)) continue;
+    let value = fields[key];
+    if (key === 'reminderEnabled' || key === 'completed') value = value ? 1 : 0;
+    if (key === 'doctor' || key === 'notes') value = value || null;
+    sets.push(`${column} = ?`);
+    params.push(value);
+  }
+  if (sets.length === 0) return findAppointmentById(id);
+  sets.push('updated_at = NOW()');
+  params.push(id);
+  await query(`UPDATE appointments SET ${sets.join(', ')} WHERE id = ?`, params);
+  return findAppointmentById(id);
+}
+
+async function findAppointmentById(id) {
+  const rows = await query('SELECT * FROM appointments WHERE id = ? LIMIT 1', [id]);
+  return mapAppointment(rows[0]);
+}
+
+async function deleteAppointment(id) {
+  await query('DELETE FROM appointments WHERE id = ?', [id]);
+}
+
+// ---------------------------------------------------------------------------
 // health_record_comments
 // ---------------------------------------------------------------------------
 
@@ -359,6 +453,13 @@ module.exports = {
   findPregnancyByFamily,
   listAllPregnancies,
   upsertPregnancy,
+  // appointments
+  listAppointmentsByFamily,
+  listAllAppointments,
+  findAppointment,
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
   // health records
   listRecordsByFamily,
   findRecord,
