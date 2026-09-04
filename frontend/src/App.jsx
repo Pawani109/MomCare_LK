@@ -57,7 +57,7 @@ function AppRoutes() {
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-purple-50">
       {user && !isAdmin && <Header />}
 
-      <div className={user ? "pt-24" : ""}>
+      <div className={user && !isAdmin ? "pt-24" : ""}>
         <Routes>
           <Route path="/login" element={user ? <Navigate to={isAdmin ? '/admin' : '/'} replace /> : <Login />} />
           <Route path="/register" element={user ? <Navigate to={isAdmin ? '/admin' : '/'} replace /> : <Register />} />
