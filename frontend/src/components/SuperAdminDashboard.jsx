@@ -134,7 +134,7 @@ const SuperAdminDashboard = () => {
   return (
     <div className="min-h-screen bg-[#fdf5f9]">
       {/* Single-colour MomCare-pink header */}
-      <header className="sticky top-0 z-50 bg-pink-600 text-white shadow-md shadow-pink-900/10">
+      <header className="sticky top-0 z-50 bg-pink-500 text-white shadow-md shadow-pink-900/10">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div>
             <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ const SuperAdminDashboard = () => {
       </header>
 
       <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-        <section className="rounded-3xl bg-pink-600 p-6 text-white shadow-lg shadow-pink-200/60 sm:p-8">
+        <section className="rounded-3xl bg-pink-500 p-6 text-white shadow-lg shadow-pink-200/60 sm:p-8">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-pink-100">Platform overview</p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -222,7 +222,7 @@ const SuperAdminDashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1400px] border-collapse text-sm">
                 <thead>
-                  <tr className="bg-pink-600">
+                  <tr className="bg-pink-500">
                     <th className={thClass}>Mother</th>
                     <th className={thClass}>Status</th>
                     <th className={thClass}>Pregnancy profile</th>

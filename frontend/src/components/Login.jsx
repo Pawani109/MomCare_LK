@@ -79,7 +79,7 @@ const Login = () => {
                 Remember my email on this device
               </label>
 
-              <button disabled={loading} className="w-full rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 py-3 text-sm font-bold text-white shadow-md shadow-pink-100 transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60">
+              <button disabled={loading} className="w-full rounded-xl bg-pink-600 py-3 text-sm font-bold text-white shadow-md shadow-pink-100 transition hover:-translate-y-0.5 hover:bg-pink-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60">
                 {loading ? 'Signing in...' : t.login}
               </button>
             </form>
